@@ -81,21 +81,7 @@ var (
 	COLOR_NEW      = ""
 	COVER_EXT_LIST = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
 
-	OPTIONS = Options{
-		// Defaults.
-		extensions: stringSetFlag{
-			"aac":  true,
-			"ape":  true,
-			"flac": true,
-			"ogg":  true,
-			"m4a":  true,
-			"mp3":  true,
-			"mp4":  true,
-			"mpc":  true,
-			"wav":  true,
-			"wv":   true,
-		},
-	}
+	OPTIONS = Options{}
 
 	CACHE = struct {
 		index   map[string][]outputDesc
@@ -1274,6 +1260,21 @@ func main() {
 	if err == nil && st.Mode().IsRegular() {
 		fmt.Fprintf(os.Stderr, ":: Load config: %v\n", CONFIG)
 		OPTIONS = loadConfig(CONFIG)
+	}
+	if OPTIONS.extensions == nil {
+		// Defaults: Init here so that unspecified config options get properly set.
+		OPTIONS.extensions = stringSetFlag{
+			"aac":  true,
+			"ape":  true,
+			"flac": true,
+			"ogg":  true,
+			"m4a":  true,
+			"mp3":  true,
+			"mp4":  true,
+			"mpc":  true,
+			"wav":  true,
+			"wv":   true,
+		}
 	}
 
 	flag.Usage = func() {
