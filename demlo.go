@@ -823,7 +823,7 @@ func process(queue chan string, quit chan bool) {
 	defer display.Flush()
 
 	// Compile scripts.
-	L, err := makeSandbox(CACHE.scripts)
+	L, err := makeSandbox(CACHE.scripts, display)
 	if err != nil {
 		display.Error.Print(err)
 	}

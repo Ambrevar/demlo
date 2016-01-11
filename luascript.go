@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/aarzilli/golua/lua"
 	"log"
+	"os"
 )
 
 const (
@@ -22,19 +23,6 @@ const (
 	REGISTRY_SANDBOX         = "_sandbox"
 	REGISTRY_SCRIPTS         = "_scripts"
 )
-
-func lua_debug(L *lua.State) int {
-	var arglist []interface{}
-	nargs := L.GetTop()
-	for i := 1; i <= nargs; i++ {
-		if L.IsString(i) {
-			arglist = append(arglist, L.ToString(i))
-		}
-	}
-	// TODO: Send to logger?
-	// display.Debug.Println(arglist...)
-	return 0
-}
 
 func lua_stringNorm(L *lua.State) int {
 	if !L.IsString(-1) {
@@ -118,12 +106,24 @@ func lua2go_outCover(L *lua.State) outputCover {
 
 // The caller is responsible for closing the Lua state.
 // Add a `defer L.Close()` to the calling code if there is no error.
-func makeSandbox(scripts []scriptBuffer) (*lua.State, error) {
+func makeSandbox(scripts []scriptBuffer, display *Slogger) (*lua.State, error) {
 	L := lua.NewState()
 	L.OpenLibs()
 
 	// Register before defining the sandbox: these functions will be restored
 	// together with the sandbox.
+	// The closure allows access to the Debug logger.
+	lua_debug := func(L *lua.State) int {
+		var arglist []interface{}
+		nargs := L.GetTop()
+		for i := 1; i <= nargs; i++ {
+			if L.IsString(i) {
+				arglist = append(arglist, L.ToString(i))
+			}
+		}
+		display.Debug.Println(arglist...)
+		return 0
+	}
 	L.Register("debug", lua_debug)
 	L.Register("stringnorm", lua_stringNorm)
 	L.Register("stringrel", lua_stringRel)
@@ -500,6 +500,17 @@ func loadConfig(config string) Options {
 	L.OpenLibs()
 
 	// Register before defining the sandbox.
+	lua_debug := func(L *lua.State) int {
+		var arglist []interface{}
+		nargs := L.GetTop()
+		for i := 1; i <= nargs; i++ {
+			if L.IsString(i) {
+				arglist = append(arglist, L.ToString(i))
+			}
+		}
+		fmt.Fprintln(os.Stderr, arglist...)
+		return 0
+	}
 	L.Register("debug", lua_debug)
 	L.Register("stringnorm", lua_stringNorm)
 	L.Register("stringrel", lua_stringRel)
