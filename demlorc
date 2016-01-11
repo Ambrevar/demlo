@@ -1,0 +1,34 @@
+-- Demlo configuration file (Lua)
+
+-- No colors by default since it may not work on all terminals.
+color = true
+
+-- Number of cores to use (0 for all).
+cores = 0
+
+-- Extensions to look for when a folder is browsed.
+extensions = {'aac', 'mkv'}
+
+-- Fetch cover from an online database.
+getcover = false
+
+-- Fetch tags from an online database.
+gettags = false
+
+-- Use human readable output instead of machine-friendly output.
+graphical = true
+
+-- Lua code to run before and after the other scripts, respectively.
+prescript = ''
+postscript = ''
+
+-- If false, show preview and exit before processing.
+process = false
+
+-- Remove source after processing. This can speed up the process when not
+-- re-encoding.
+removesource = false
+
+-- Scripts to run by default.
+-- Order matters, e.g. 'path' can be influenced by the modifications made by 'tag'.
+scripts = {'tag', 'sub', 'case', 'punctuation', 'encoding', 'path', 'cover'}
