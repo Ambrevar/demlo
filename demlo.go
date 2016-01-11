@@ -601,7 +601,7 @@ func runAllScripts(input inputDesc, track int, defaultTags map[string]string, L 
 	// Foolproofing.
 	// -No format: use input.format.
 	// -No parameters: use "-c:a copy".
-	// -Empty output basename: use input path. TODO: Empty output path instead? Use input basename instead?
+	// -Empty output basename: use input path.
 	// -Remove empty tags to avoid storing empty strings in FFmpeg.
 
 	if output.Format == "" {
@@ -613,7 +613,7 @@ func runAllScripts(input inputDesc, track int, defaultTags map[string]string, L 
 	}
 
 	if Basename(output.Path) == "" {
-		output.Path = StripExt(input.path)
+		output.Path = input.path
 	}
 
 	var err error
@@ -924,9 +924,9 @@ func process(queue chan string, quit chan bool) {
 			for track := 0; track < input.trackCount; track++ {
 				preview(input, output[track], track, display)
 				// Warn for existence.
-				_, err = os.Stat(output[track].Path + "." + output[track].Format)
+				_, err = os.Stat(output[track].Path)
 				if err == nil || !os.IsNotExist(err) {
-					display.Warning.Println("Destination exists:", output[track].Path+"."+output[track].Format)
+					display.Warning.Println("Destination exists:", output[track].Path)
 				}
 			}
 		} else {
