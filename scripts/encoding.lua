@@ -44,33 +44,31 @@ if output.format == '' or output.format == input.format.format_name then
 	end
 end
 
-local function append(t1, t2)
-	for _, v in ipairs(t2) do
-		t1[#t1+1] = v
-	end
-end
 
 if bitrate >= input.bitrate then
-	-- Encode stream only if current bitrate is strictly below the original bitrate.
-	append(output.parameters, {'-c:a', 'copy'})
+	if #output.parameters == 0 then
+		-- Encode stream only if current bitrate is strictly below the original
+		-- bitrate, and if output.parameters is not already set (e.g. from index).
+		output.parameters = {'-c:a', 'copy'}
+	end
 
 elseif output.format == 'adts' or
 	output.format == '3gp' or
 	output.format == '3g2' or
 	output.format == 'mov' or
 	output.format == 'mp4' then
-	append(output.parameters, {'-c:a', 'aac', '-b:a', tostring(math.min(bitrate, AACMAX)), '-strict', '-2'})
+	output.parameters = {'-c:a', 'aac', '-b:a', tostring(math.min(bitrate, AACMAX)), '-strict', '-2'}
 
 elseif output.format == 'ogg' or output.format == 'oga' then
-	append(output.parameters, {'-c:a', 'libvorbis', '-b:a', tostring(math.min(bitrate, OGGMAX))})
+	output.parameters = {'-c:a', 'libvorbis', '-b:a', tostring(math.min(bitrate, OGGMAX))}
 	-- Opus:
-	-- append(output.parameters, {'-c:a', 'libopus', '-b:a', tostring(math.min(input.bitrate, OPUSMAX))})
+	-- output.parameters = {'-c:a', 'libopus', '-b:a', tostring(math.min(input.bitrate, OPUSMAX))}
 
 elseif output.format == 'flac' then
-	append(output.parameters, {'-c:a', 'flac', '-compression_level', '12'})
+	output.parameters = {'-c:a', 'flac', '-compression_level', '12'}
 
 elseif output.format == 'wv' then
-	append(output.parameters, {'-c:a', 'wavpack', '-compression_level', '12'})
+	output.parameters = {'-c:a', 'wavpack', '-compression_level', '12'}
 
 elseif output.format == 'mp3' then
 	if bitrate > MP3MAX then
@@ -91,5 +89,5 @@ elseif output.format == 'mp3' then
 		qual = q
 	end
 
-	append(output.parameters, {'-c:a', 'libmp3lame', '-q:a', tostring(qual)})
+	output.parameters = {'-c:a', 'libmp3lame', '-q:a', tostring(qual)}
 end
