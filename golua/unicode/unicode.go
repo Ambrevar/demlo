@@ -173,7 +173,7 @@ func Gsub(L *lua.State) int {
 	pattern := L.CheckString(2)
 
 	tr := L.Type(3)
-	L.ArgCheck(tr == lua.LUA_TNUMBER || tr == lua.LUA_TSTRING ||
+	L.Argcheck(tr == lua.LUA_TNUMBER || tr == lua.LUA_TSTRING ||
 		tr == lua.LUA_TFUNCTION || tr == lua.LUA_TTABLE, 3, "string/function/table expected")
 
 	// If 'n' is unspecified, replace all matches.
