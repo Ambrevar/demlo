@@ -45,7 +45,7 @@ import (
 
 const (
 	APPLICATION = "demlo"
-	VERSION     = "2.0"
+	VERSION     = "2-rolling"
 	COPYRIGHT   = "Copyright (C) 2013-2016 Pierre Neidhardt"
 	URL         = "http://ambrevar.bitbucket.org/demlo"
 
