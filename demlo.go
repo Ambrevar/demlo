@@ -376,6 +376,7 @@ func getEmbeddedCover(input inputDesc, display *Slogger) (embeddedCovers []input
 	// FFmpeg treats embedded covers like video streams.
 	for i := 0; i < input.Format.Nb_streams; i++ {
 		if input.Streams[i].Codec_name != "image2" &&
+			input.Streams[i].Codec_name != "png" &&
 			input.Streams[i].Codec_name != "mjpeg" {
 			continue
 		}
@@ -1048,7 +1049,7 @@ func process(queue chan string, quit chan bool) {
 				// Must add all streams first.
 				ffmpegParameters = append(ffmpegParameters, "-map", "0")
 				for i := 0; i < input.Format.Nb_streams; i++ {
-					if (input.Streams[i].Codec_type == "video" && input.Streams[i].Codec_name != "image2" && input.Streams[i].Codec_name != "mjpeg") ||
+					if (input.Streams[i].Codec_type == "video" && input.Streams[i].Codec_name != "image2" && input.Streams[i].Codec_name != "png" && input.Streams[i].Codec_name != "mjpeg") ||
 						(input.Streams[i].Codec_type == "audio" && i > input.audioIndex) ||
 						(input.Streams[i].Codec_type != "audio" && input.Streams[i].Codec_type != "video") {
 						ffmpegParameters = append(ffmpegParameters, "-map", "-0:"+strconv.Itoa(i))
