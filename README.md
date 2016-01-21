@@ -38,8 +38,9 @@ Copy the files as follows:
 
 ## Usage
 
-See `demlo -h` and demlo(1).
+See `demlo -h` and the [home page](http://ambrevar.bitbucket.org/demlo/).
 
 ## License
 
 See LICENSE.
+
