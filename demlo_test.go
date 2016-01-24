@@ -136,7 +136,7 @@ func TestSentenceCase(t *testing.T) {
 
 	// Set setencecase.
 	L.PushBoolean(true)
-	L.SetGlobal("sentencecase")
+	L.SetGlobal("scase")
 
 	makeSandboxOutput(L, output)
 	err = runScript(L, "case", input)
