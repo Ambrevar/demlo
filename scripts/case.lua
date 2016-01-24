@@ -250,7 +250,6 @@ local function setcase(input, const, sentencecase)
 	return output
 end
 
-constants = append_constants(constants, const)
 constants = append_constants(constants, const_en)
 constants = append_constants(constants, const_music)
 constants = append_constants(constants, const_common)
