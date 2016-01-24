@@ -4,8 +4,8 @@
 -- See https://en.wikipedia.org/wiki/Letter_case.
 
 -- Global options.
-sentencecase = sentencecase or false
-const = const or {}
+local sentencecase = scase or false
+local constants = const or {}
 
 -- TODO: No verb? (am, are, was, is) No word > 3 chars? (against, between, from, into, onto)
 const_en = const_en or {
@@ -250,7 +250,6 @@ local function setcase(input, const, sentencecase)
 	return output
 end
 
-local constants = {}
 constants = append_constants(constants, const)
 constants = append_constants(constants, const_en)
 constants = append_constants(constants, const_music)

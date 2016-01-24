@@ -1,6 +1,6 @@
 -- demlo script
 -- Set codec parameters. Set format (container).
--- Copy stream only when 'bitrate' is higher than 'input.bitrate'.
+-- Copy stream only when 'bps' is higher than 'input.bitrate'.
 -- Format is kept if supported.
 
 -- TODO: Check which format supports video streams. (E.g. for embedded covers.)
@@ -9,7 +9,7 @@
 -- If 'bitrate' is not specified, assume highest value. 'bitrate' should not be
 -- set to 'input.bitrate', or the bitrate of the first track will propagate to
 -- other tracks.
-bitrate = bitrate or 9999999
+local bitrate = bps or 9999999
 
 -- Properties.
 local AACMAX = 529000
@@ -78,7 +78,7 @@ elseif output.format == 'mp3' then
 	-- issue if we want to turn CBR to VBR. A workaround is to set
 	-- 'bitrate = input.bitrate - 1'.
 
-	-- VBR encoding: we match current bitrate with bitrate associated to quality
+	-- VBR encoding: match current bitrate with bitrate associated to quality
 	-- factor.
 	local qualMap = {245000, 225000, 190000, 175000, 165000, 130000, 115000, 100000, 85000, 65000}
 	local qual = 1

@@ -6,12 +6,12 @@
 -- Pad zeros (2 digits) in track number for file browsers without numeric sorting capabilities.
 
 -- Global options.
-osseparator = '/'
+local osseparator = ossep or '/'
 -- Relative paths are OK, but '~' does not get expanded.
-library = library or os.getenv('HOME')  .. osseparator .. 'music'
+local library = lib or os.getenv('HOME')  .. osseparator .. 'music'
 -- Replace OS separators in folder names by ' - ' in the sane() function.
 -- Some filesystems require that more characters get replaced, such as ':'.
-fsfilter = fsfilter or [[\s*]] .. osseparator .. [[\s*]]
+local fsfilter = fsf or [[\s*]] .. osseparator .. [[\s*]]
 
 local function empty(s)
 	if type(s) ~= 'string' or s == '' then

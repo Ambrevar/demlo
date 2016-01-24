@@ -12,7 +12,7 @@
 -- 	 {"'$", '"'},
 
 -- Global option.
-sub = sub or {
+local subst = sub or {
 	-- Default: Replace various type of single quotes by "'".
 	-- Replace curly braces by square braces.
 	{'[´`’]', "'"},
@@ -23,7 +23,7 @@ sub = sub or {
 -- WARNING: We cannot use the second argument returned by 'pairs' as it will
 -- change inside the loop.
 for k, _ in pairs(output.tags) do
-	for _, rule in ipairs(sub) do
+	for _, rule in ipairs(subst) do
 		output.tags[k] = output.tags[k]:gsub(rule[1], rule[2])
 	end
 end
