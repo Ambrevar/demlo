@@ -498,7 +498,7 @@ func prepareTags(input *inputDesc, display *Slogger) {
 				continue
 			}
 			if st.Size() > CUESHEET_MAXSIZE {
-				display.Warning.Print("Cuesheet size %v > %v bytes, skipping", cs, CUESHEET_MAXSIZE)
+				display.Warning.Printf("Cuesheet size %v > %v bytes, skipping", cs, CUESHEET_MAXSIZE)
 				continue
 			}
 			buf, err := ioutil.ReadFile(cs)
