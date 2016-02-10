@@ -5,7 +5,7 @@
 
 -- Global options.
 local sentencecase = scase or false
-local constants = const or {}
+local const_custom = const or {}
 
 -- TODO: No verb? (am, are, was, is) No word > 3 chars? (against, between, from, into, onto)
 const_en = const_en or {
@@ -242,7 +242,7 @@ local function setcase(input, const, sentencecase)
 	output = output:gsub([=[[\pL\pN]]=], function (c) return c:upper() end, 1)
 
 	-- Exception 2: Capitalize first word after some punctuation marks.
-	output = output:gsub([[([{}[\]?!():.-][^\pL\pN]*)(\p{Ll})]], function (r, c) return r .. c:upper() end)
+	output = output:gsub([[([{}[\]?!():.-/][^\pL\pN]*)(\p{Ll})]], function (r, c) return r .. c:upper() end)
 
 	-- Exception 3: Capitalize first word right after a quote.
 	output = output:gsub([[([^\pL\pN]["'´’])(\p{Ll})]], function (r, c) return r .. c:upper() end)
@@ -250,10 +250,12 @@ local function setcase(input, const, sentencecase)
 	return output
 end
 
+local constants = {}
 constants = append_constants(constants, const_en)
 constants = append_constants(constants, const_music)
 constants = append_constants(constants, const_common)
 constants = append_constants(constants, const_units)
+constants = append_constants(constants, const_custom)
 
 local const_mac_pl = pluralize(const_mac)
 if sentencecase then
