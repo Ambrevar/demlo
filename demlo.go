@@ -37,6 +37,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -91,6 +92,10 @@ var (
 	DST_COVER_CACHE = map[dstCoverKey]bool{}
 
 	DST_COVER_CACHE_MUTEX chan bool
+)
+
+var (
+	RE_PRINTABLE = regexp.MustCompile(`\pC`)
 )
 
 type dstCoverKey struct {
@@ -236,6 +241,10 @@ func prettyPrint(attr, input, output string, attrMaxlen, valueMaxlen int, displa
 		colorIn = "red"
 		colorOut = "green"
 	}
+
+	// Replace control characters to avoid mangling the output.
+	input = RE_PRINTABLE.ReplaceAllString(input, " / ")
+	output = RE_PRINTABLE.ReplaceAllString(output, " / ")
 
 	in := []rune(input)
 	out := []rune(output)
