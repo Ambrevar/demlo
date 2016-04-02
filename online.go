@@ -45,6 +45,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync"
 )
 
 const (
@@ -66,13 +67,21 @@ var (
 	// index releaseIDs by {album, albumartist, year} to avoid confusion on albums
 	// with the same name.
 	// Caches are global and access should be mutually exclusive among goroutines.
-	RELEASE_INDEX = map[AlbumKey]ReleaseID{}
-	TAGS_CACHE    = map[ReleaseID]Tags{}
-	COVER_CACHE   = map[ReleaseID]Cover{}
+	RELEASE_INDEX = struct {
+		v map[AlbumKey]ReleaseID
+		sync.RWMutex
+	}{v: map[AlbumKey]ReleaseID{}}
+	TAGS_CACHE = struct {
+		v map[ReleaseID]Tags
+		sync.RWMutex
+	}{v: map[ReleaseID]Tags{}}
+	COVER_CACHE = struct {
+		v map[ReleaseID]Cover
+		sync.RWMutex
+	}{v: map[ReleaseID]Cover{}}
 
-	RELEASE_INDEX_MUTEX chan bool
-	TAGS_CACHE_MUTEX    chan bool
-	COVER_CACHE_MUTEX   chan bool
+	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
+	// the same AlbumKey but refer to a different album?
 )
 
 type RecordingID gomusicbrainz.MBID
@@ -104,17 +113,6 @@ type Cover struct {
 }
 
 func init() {
-	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
-	// the same AlbumKey but refer to a different album?
-	RELEASE_INDEX_MUTEX = make(chan bool, 1)
-	RELEASE_INDEX_MUTEX <- true
-
-	TAGS_CACHE_MUTEX = make(chan bool, 1)
-	TAGS_CACHE_MUTEX <- true
-
-	COVER_CACHE_MUTEX = make(chan bool, 1)
-	COVER_CACHE_MUTEX <- true
-
 	MUSICBRAINZ_CLIENT, _ = gomusicbrainz.NewWS2Client("https://musicbrainz.org/ws/2", APPLICATION, VERSION, URL)
 }
 
@@ -406,14 +404,14 @@ func queryIndex(input inputDesc) (ReleaseID, AlbumKey) {
 	relMax := 0.0
 	var matchKey AlbumKey
 
-	<-RELEASE_INDEX_MUTEX
-	for key := range RELEASE_INDEX {
+	RELEASE_INDEX.RLock()
+	for key := range RELEASE_INDEX.v {
 		rel := stringRel(albumKey.album, key.album)
 		if rel >= RELATION_THRESHOLD {
 			albumMatches = append(albumMatches, key)
 		}
 	}
-	RELEASE_INDEX_MUTEX <- true
+	RELEASE_INDEX.RUnlock()
 
 	for _, key := range albumMatches {
 		rel := stringRel(albumKey.albumartist, key.albumartist)
@@ -429,9 +427,9 @@ func queryIndex(input inputDesc) (ReleaseID, AlbumKey) {
 		}
 	}
 
-	<-RELEASE_INDEX_MUTEX
-	var releaseID = RELEASE_INDEX[matchKey]
-	RELEASE_INDEX_MUTEX <- true
+	RELEASE_INDEX.RLock()
+	var releaseID = RELEASE_INDEX.v[matchKey]
+	RELEASE_INDEX.RUnlock()
 
 	return releaseID, albumKey
 }
@@ -442,7 +440,9 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 	releaseID, albumKey := queryIndex(input)
 	display.Debug.Printf("Album cache Key: %q\n", albumKey)
 
-	tags, ok := TAGS_CACHE[releaseID]
+	TAGS_CACHE.RLock()
+	tags, ok := TAGS_CACHE.v[releaseID]
+	TAGS_CACHE.RUnlock()
 	if !ok {
 		// Not cached.
 
@@ -450,9 +450,9 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 		// fails, the entry will be zero, thus allowing to spot dummy entries and
 		// avoid querying it again.
 		defer func() {
-			<-TAGS_CACHE_MUTEX
-			TAGS_CACHE[releaseID] = tags
-			TAGS_CACHE_MUTEX <- true
+			TAGS_CACHE.Lock()
+			TAGS_CACHE.v[releaseID] = tags
+			TAGS_CACHE.Unlock()
 		}()
 
 		fingerprint, duration, err := fingerprint(input.path)
@@ -471,9 +471,9 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 		}
 
 		// Add releaseID to cache.
-		<-RELEASE_INDEX_MUTEX
-		RELEASE_INDEX[albumKey] = releaseID
-		RELEASE_INDEX_MUTEX <- true
+		RELEASE_INDEX.Lock()
+		RELEASE_INDEX.v[albumKey] = releaseID
+		RELEASE_INDEX.Unlock()
 
 		// We use releaseID to identify albums: it is more reliable than the album
 		// name in tags.
@@ -576,14 +576,16 @@ func getOnlineCover(input inputDesc, releaseID ReleaseID, display *Slogger) (pic
 		releaseID, albumKey = queryIndex(input)
 	}
 
-	cover, ok := COVER_CACHE[releaseID]
+	COVER_CACHE.RLock()
+	cover, ok := COVER_CACHE.v[releaseID]
+	COVER_CACHE.RUnlock()
 	if !ok {
 		// Not cached.
 
 		defer func() {
-			<-COVER_CACHE_MUTEX
-			COVER_CACHE[releaseID] = cover
-			COVER_CACHE_MUTEX <- true
+			COVER_CACHE.Lock()
+			COVER_CACHE.v[releaseID] = cover
+			COVER_CACHE.Unlock()
 		}()
 
 		// The releaseID can be known from other caches (tagsCache) while not
@@ -606,9 +608,9 @@ func getOnlineCover(input inputDesc, releaseID ReleaseID, display *Slogger) (pic
 		}
 
 		// Add releaseID to cache.
-		<-RELEASE_INDEX_MUTEX
-		RELEASE_INDEX[albumKey] = releaseID
-		RELEASE_INDEX_MUTEX <- true
+		RELEASE_INDEX.Lock()
+		RELEASE_INDEX.v[albumKey] = releaseID
+		RELEASE_INDEX.Unlock()
 
 		cover, err = queryCover(releaseID)
 		if err != nil {

@@ -10,12 +10,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sync"
 )
 
-var (
-	stderrMutex chan bool
-	stdoutMutex chan bool
-)
+var displayMutex sync.Mutex
 
 type Slogger struct {
 	Debug     *log.Logger
@@ -26,13 +24,6 @@ type Slogger struct {
 	Error     *log.Logger
 	stderrBuf bytes.Buffer
 	stdoutBuf bytes.Buffer
-}
-
-func init() {
-	stderrMutex = make(chan bool, 1)
-	stderrMutex <- true
-	stdoutMutex = make(chan bool, 1)
-	stdoutMutex <- true
 }
 
 func newSlogger(debug, color bool) *Slogger {
@@ -60,13 +51,11 @@ func newSlogger(debug, color bool) *Slogger {
 }
 
 func (sl *Slogger) Flush() {
-	<-stderrMutex
+	displayMutex.Lock()
 	io.Copy(os.Stderr, &sl.stderrBuf)
-	stderrMutex <- true
-	sl.stderrBuf.Reset()
-
-	<-stdoutMutex
 	io.Copy(os.Stdout, &sl.stdoutBuf)
-	stdoutMutex <- true
+	displayMutex.Unlock()
+
+	sl.stderrBuf.Reset()
 	sl.stdoutBuf.Reset()
 }

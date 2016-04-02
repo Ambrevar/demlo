@@ -42,6 +42,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const (
@@ -89,13 +90,12 @@ var (
 		scripts []scriptBuffer
 	}{}
 
-	DST_COVER_CACHE = map[dstCoverKey]bool{}
-
-	DST_COVER_CACHE_MUTEX chan bool
-)
-
-var (
 	RE_PRINTABLE = regexp.MustCompile(`\pC`)
+
+	DST_COVER_CACHE = struct {
+		v map[dstCoverKey]bool
+		sync.RWMutex
+	}{v: map[dstCoverKey]bool{}}
 )
 
 type dstCoverKey struct {
@@ -698,15 +698,15 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 		}
 
 		// Skip if marked in cache.
-		<-DST_COVER_CACHE_MUTEX
-		marked := DST_COVER_CACHE[dstCoverKey{path: dst, checksum: checksum}]
-		DST_COVER_CACHE_MUTEX <- true
+		DST_COVER_CACHE.RLock()
+		marked := DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}]
+		DST_COVER_CACHE.RUnlock()
 		if marked {
 			return "", nil
 		} else {
-			<-DST_COVER_CACHE_MUTEX
-			DST_COVER_CACHE[dstCoverKey{path: dst, checksum: checksum}] = true
-			DST_COVER_CACHE_MUTEX <- true
+			DST_COVER_CACHE.Lock()
+			DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}] = true
+			DST_COVER_CACHE.Unlock()
 		}
 
 		// Compute checksum of existing cover and early-out if equal.
@@ -759,9 +759,9 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 		if err != nil {
 			return "", err
 		}
-		<-DST_COVER_CACHE_MUTEX
-		DST_COVER_CACHE[dstCoverKey{path: dst, checksum: checksum}] = true
-		DST_COVER_CACHE_MUTEX <- true
+		DST_COVER_CACHE.Lock()
+		DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}] = true
+		DST_COVER_CACHE.Unlock()
 	}
 
 	return dst, nil
@@ -1259,9 +1259,6 @@ func init() {
 	if CONFIG == "" {
 		CONFIG = filepath.Join(XDG_CONFIG_HOME, APPLICATION, APPLICATION+"rc")
 	}
-
-	DST_COVER_CACHE_MUTEX = make(chan bool, 1)
-	DST_COVER_CACHE_MUTEX <- true
 }
 
 func main() {

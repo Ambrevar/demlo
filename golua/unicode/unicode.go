@@ -10,6 +10,7 @@ import (
 	"github.com/aarzilli/golua/lua"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // TODO: Rename package to avoid clashes?
@@ -17,30 +18,24 @@ import (
 // TODO: Make package independant.
 // TODO: Test how memoization scales with regexpCache.
 
-var (
-	regexpCache = map[string]*regexp.Regexp{}
-
-	regexpCacheMutex chan bool
-)
-
-func init() {
-	regexpCacheMutex = make(chan bool, 1)
-	regexpCacheMutex <- true
-}
+var regexpCache = struct {
+	v map[string]*regexp.Regexp
+	sync.RWMutex
+}{v: map[string]*regexp.Regexp{}}
 
 func regexpQuery(L *lua.State, pattern string) *regexp.Regexp {
-	<-regexpCacheMutex
-	re, ok := regexpCache[pattern]
-	regexpCacheMutex <- true
+	regexpCache.RLock()
+	re, ok := regexpCache.v[pattern]
+	regexpCache.RUnlock()
 	if !ok {
 		var err error
 		re, err = regexp.Compile(pattern)
 		if err != nil {
 			L.RaiseError(err.Error())
 		}
-		<-regexpCacheMutex
-		regexpCache[pattern] = re
-		regexpCacheMutex <- true
+		regexpCache.Lock()
+		regexpCache.v[pattern] = re
+		regexpCache.Unlock()
 	}
 	return re
 }
