@@ -28,20 +28,20 @@ Process
 
 First Demlo creates a list of all input files. When a folder is specified, all
 files matching the extensions from the 'extensions' variable will be appended to
-the list. Identifal files are appended only once.
+the list. Identical files are appended only once.
 
-Next all files gets analyzed:
+Next all files get analyzed:
 
 - The audio file details (tags, stream properties, format properties, etc.) are
 stored into the 'input' variable. The 'output' variable gets its default values
 from 'input', or from an index file if specified from command-line. If no index
 has been specified and if an attached cuesheet is found, all cuesheet details
-are appended accordingly. Cuesheet tags override streams tags, which override
+are appended accordingly. Cuesheet tags override stream tags, which override
 format tags. Finally, still without index, tags can be retrieved from Internet
 if the command-line option is set.
 
 - If a prescript has been specified, it gets executed. It makes it possible to
-adjust the input values before the script gets executed.
+adjust the input values and global variables before running the other scripts.
 
 - The scripts get executed in order, if any. The 'output' variable is
 transformed accordingly. Scripts may contain rules such as defining a new file
@@ -57,10 +57,10 @@ path, the encoding parameters, and so on.
 
 - A preview is displayed.
 
-- If applying changes, the covers get copied if required and the audio file gets
-processed: tags are modified as specified, the file is re-encoded if required,
-and the output is written to the appropriate folder. When destination already
-exists, a random suffix is added to the filename.
+- When applying changes, the covers get copied if required and the audio file
+gets processed: tags are modified as specified, the file is re-encoded if
+required, and the output is written to the appropriate folder. When destination
+already exists, a random suffix is added to the filename.
 
 
 
@@ -78,10 +78,9 @@ to ".".
 
 Scripts
 
-Scripts can contain any Lua code that is considered secure. Some functions like
-'os.execute' are not available for security reasons. It is not possible to print
-to the standard output/error unless running in debug mode and using the 'debug'
-function.
+Scripts can contain any safe Lua code. Some functions like 'os.execute' are not
+available for security reasons. It is not possible to print to the standard
+output/error unless running in debug mode and using the 'debug' function.
 
 See the 'sandbox.go' file for a list of allowed functions and variables.
 
@@ -92,7 +91,7 @@ Scripts have no requirements at all. However, to be useful, they should set
 values of the 'output' table detailed in the 'Variables' section. You can use
 the full power of the Lua to set the variables dynamically. For instance:
 
-	output.path = library .. '/' .. o.artist .. '/' .. (not empty(o.album) and o.album .. '/' or '') .. track_padded .. '. ' .. o.title
+	output.path = library .. '/' .. o.artist .. '/' .. (o.album ~= nil and o.album .. '/' or '') .. track_padded .. '. ' .. o.title
 
 'input' and 'output' are both accessible from any script.
 
@@ -122,7 +121,7 @@ code that is run before and after all other scripts, respectively.
 Use global variables to transfer data and parameters along.
 
 If the prescript and postscript end up being too long, consider writing a demlo
-script. You can also define shell aliases or use wrapper scripts to help.
+script. You can also define shell aliases or use wrapper scripts as convenience.
 
 
 
@@ -156,14 +155,14 @@ Since there may be more than one stream (covers, other data), the first audio
 stream is assumed to be the music stream. For convenience, the index of the
 music stream is stored in 'audioindex'.
 
-The tags returned by FFmpeg are found in streams, format, and in the cuesheet
-can. To make tag queries easier, all tags are stored in the 'tags' table, with
-the following precedence:
+The tags returned by FFmpeg are found in streams, format and in the cuesheet.
+To make tag queries easier, all tags are stored in the 'tags' table, with the
+following precedence:
 
 	format tags < stream tags < cuesheet header tags < cuesheet track tags
 
 You can remove a tag by setting it to 'nil' or the empty string. This is
-equivalent, except that 'nil' is saving some memory during the process.
+equivalent, except that 'nil' saves some memory during the process.
 
 
 The 'output' table describes the transformation to apply on the file:
@@ -203,7 +202,7 @@ Return lowercase string without non-alphanumeric characters nor leading zeros.
 
 	stringrel(string, string)
 Return the relation coefficient of the two input strings. The result is a float
-in 0.0...1.0, 0 means no relation at all, 1 means identical strings.
+in 0.0...1.0, 0.0 means no relation at all, 1.0 means identical strings.
 
 
 
@@ -214,11 +213,10 @@ A format is a container in FFmpeg's terminology.
 'output.parameters' contains CLI flags passed to FFmpeg. They are meant to set
 the stream codec, the bitrate, etc.
 
-If 'output.parameters' is {"-c:a", "copy"} and the format is identical,
-then taglib will be used instead of FFmpeg.
-
-Use this rule from a (post)script to disable encoding by setting the same format
-and the right parameters.
+If 'output.parameters' is {"-c:a", "copy"} and the format is identical, then
+taglib will be used instead of FFmpeg. Use this rule from a (post)script to
+disable encoding by setting the same format and the copy parameters. This speeds
+up the process.
 
 
 
@@ -234,16 +232,16 @@ JSON format or in a more human-readable format depending on the options.
 Internet service
 
 The initial values of the 'output' table can be completed with tags fetched from
-the Musicbrainz database. Audio files are fingerprinted for the queries, so even
-with initially wrong names and tags, the right values should still be retrieved.
-The front album cover can also be retrieved.
+the MusicBrainz database. Audio files are fingerprinted for the queries, so even
+with initially wrong file names and tags, the right values should still be
+retrieved. The front album cover can also be retrieved.
 
 Proxy parameters will be fetched automatically from the 'http_proxy'
 and 'https_proxy' environment variables.
 
 As this process requires network access it can be quite slow. Nevertheless,
 Demlo is specifically optimized for albums, so that network queries are
-used for one track per album only, when possible.
+used for only one track per album, when possible.
 
 Some tracks can be released on different albums: Demlo tries to guess it from
 the tags, but if the tags are wrong there is no way to know which one it is.
@@ -294,7 +292,7 @@ Covers
 
 Demlo can manage embedded covers as well as external covers.
 
-External covers are queried from files matching known extension in the file's
+External covers are queried from files matching known extensions in the file's
 folder.
 Embedded covers are queried from static video streams in the file.
 Covers are accessed from
@@ -308,7 +306,7 @@ Covers are accessed from
 	input.onlinecover = inputcover
 
 The embedded covers are indexed numerically by order of appearance in the
-streams. The first cover will be at index 1 and so on. This is not necesarily
+streams. The first cover will be at index 1 and so on. This is not necessarily
 the index of the stream.
 
 'inputcover' is the following structure:
@@ -341,7 +339,7 @@ Cover transformations are specified in
 	}
 	output.onlinecover = outputcover
 
-'outputcover' is the following structure:
+'outputcover' has the following structure:
 
 	{
 		path 'full/path/with.ext',
@@ -349,9 +347,10 @@ Cover transformations are specified in
 		parameters = {},
 	}
 
-See the comment on 'format' for 'inputcover'.
+The format is specified by FFmpeg this time. See the comments on 'format' for
+'inputcover'.
 
-'parameters' is used in the same fasion as 'output.parameters'.
+'parameters' is used in the same fashion as 'output.parameters'.
 
 
 
@@ -403,8 +402,8 @@ Do not run any script but 'path', the file content is unchanged, and the file
 is renamed to a dynamically computed destination:
 	demlo -s 'filename' audio.file
 
-Run default script (if set in configuration file), be do not re-encode:
-	demlo -post 'output.format=input.format; output.paramters={"-c:a","copy"}' audio.file
+Run default script (if set in configuration file), but do not re-encode:
+	demlo -post 'output.format=input.format; output.parameters={"-c:a","copy"}' audio.file
 
 Set 'artist' to be 'composer', and 'title' to be preceded by the new value
 of 'artist', then apply default script. Do not re-encode. Order in runtime
@@ -417,13 +416,13 @@ Set track number to first number in input file name:
 Apply default script but keep original value for the 'artist' tag:
 	demlo -post 'o.artist=i.artist' audio.file
 
-1) Preview default script in index format and output to 'index'. 2) Edit file to
-fix any potential mistake. 3) Run Demlo over the same files using the
-index information only.
+1) Preview default scripts transformation and save it to an index. 2) Edit file
+to fix any potential mistake. 3) Run Demlo over the same files using the index
+information only.
 
 	demlo *.wv >> index
 	## Edit index as needed
-	demlo -i index -s '' *.wv
+	demlo -p -i index -s '' *.wv
 
 Same as above but generate output filename according to the 'rename' script.
 If you perform some manual changes after a script is run, filename is not
@@ -436,10 +435,11 @@ Retrieve tags from Internet:
 Same as above but for a whole album, and saving the result in an index:
 	demlo -t album/*.ogg > album-index.json
 
-Download cover for the album corresponding to the track:
-	demlo -c -s 'cover' album/track
+Download cover for the album corresponding to the track (use -rmsrc to avoid
+duplicating the audio file):
+	demlo -rmsrc -c -s 'cover' album/track
 
-Change tags inplace with entry from MusicBrainz:
+Change tags inplace with entries from MusicBrainz:
 	demlo -t -s '' album/*
 
 Set tags to titlecase while casing AC-DC correctly:
