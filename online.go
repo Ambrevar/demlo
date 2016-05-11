@@ -63,7 +63,7 @@ var (
 	RE_DATE2YEAR = regexp.MustCompile(`\d\d\d\d+`)
 	RE_TRACK     = regexp.MustCompile(`\d+`)
 
-	// Map tags to releaseID for future files. This saves on acoustID queries. We
+	// Map tags to releaseID for future files. This spares some acoustID queries. We
 	// index releaseIDs by {album, albumartist, year} to avoid confusion on albums
 	// with the same name.
 	// Caches are global and access should be mutually exclusive among goroutines.
@@ -82,17 +82,27 @@ var (
 
 	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
 	// the same AlbumKey but refer to a different album?
+
+	ErrMissingCover = errors.New("cover not found")
 )
 
+// RecordingID is the MusicBrainz ID of a specific track. Different remixes have
+// different RecordingIDs.
 type RecordingID gomusicbrainz.MBID
+
+// ReleaseID is the MusicBrainz ID of a specific album release. Releases in
+// different countries with varying bonus content have different ReleaseIDs.
 type ReleaseID gomusicbrainz.MBID
 
+// AlbumKey is used to cluster tracks by album. The key is used in the lookup
+// cache.
 type AlbumKey struct {
 	album       string
 	albumartist string
 	date        string
 }
 
+// Recording holds tag information of the track.
 type Recording struct {
 	artist   string
 	duration int
@@ -100,6 +110,7 @@ type Recording struct {
 	track    string
 }
 
+// Tags holds tag information of an album.
 type Tags struct {
 	album       string
 	albumartist string
@@ -107,6 +118,7 @@ type Tags struct {
 	recordings  map[RecordingID]Recording
 }
 
+// Cover holds the cover and its inputCover description.
 type Cover struct {
 	picture []byte
 	desc    inputCover
@@ -332,8 +344,11 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 		resp.Body.Close()
 		resp, err = http.DefaultClient.Get("https://musicbrainz.org/release/" + string(releaseID))
 
+		if err != nil {
+			return Cover{}, err
+		}
 		if resp.StatusCode != 200 {
-			return Cover{}, errors.New("cover not found")
+			return Cover{}, ErrMissingCover
 		}
 		buf, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -346,15 +361,18 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 		// another dependency and a simple regexp.
 		matches := RE_COVER.FindSubmatch(buf)
 		if matches == nil {
-			return Cover{}, errors.New("cover not found")
+			return Cover{}, ErrMissingCover
 		}
 		uri := string(matches[1])
 
 		resp, err = http.DefaultClient.Get(uri)
+		if err != nil {
+			return Cover{}, err
+		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			return Cover{}, errors.New("cover not found")
+			return Cover{}, ErrMissingCover
 		}
 	}
 

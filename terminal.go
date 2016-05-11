@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-// GetSize returns the dimensions of the given terminal.
+// TerminalSize returns the dimensions of the given terminal.
 func TerminalSize(fd int) (width, height int, err error) {
 	var dimensions [4]uint16
 

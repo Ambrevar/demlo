@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-/* Return the starting time and duration (in FFmpeg CLI format) of a track in a multi-track file.
+/* FFmpegSplitTimes returns the starting time and duration (in FFmpeg CLI format) of a track in a multi-track file.
 
 Since a cuesheet does not contain the total duration, we cannot infere last
 track's duration only from the sheet. We need to pass it as parameter.

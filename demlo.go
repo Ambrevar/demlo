@@ -51,11 +51,12 @@ const (
 	COPYRIGHT   = "Copyright (C) 2013-2016 Pierre Neidhardt"
 	URL         = "http://ambrevar.bitbucket.org/demlo"
 
-	BLOCKSIZE            = 4096
+	// COVER_CHECKSUM_BLOCK limits cover checksums to this amount of bytes for performance gain.
 	COVER_CHECKSUM_BLOCK = 8 * 4096
-	CUESHEET_MAXSIZE     = 10 * 1024 * 1024
-	INDEX_MAXSIZE        = 10 * 1024 * 1024
-	SCRIPT_MAXSIZE       = 10 * 1024 * 1024
+	// 10M seems to be a reasonable max.
+	CUESHEET_MAXSIZE = 10 * 1024 * 1024
+	INDEX_MAXSIZE    = 10 * 1024 * 1024
+	SCRIPT_MAXSIZE   = 10 * 1024 * 1024
 )
 
 var usage = `Batch-transcode files with user-written scripts for dynamic tagging
@@ -79,11 +80,9 @@ var (
 	USER_SCRIPTROOT   string
 	CONFIG            string
 
-	COLOR_OLD      = ""
-	COLOR_NEW      = ""
 	COVER_EXT_LIST = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
 
-	OPTIONS = Options{}
+	OPTIONS = options{}
 
 	CACHE = struct {
 		index   map[string][]outputDesc
@@ -106,7 +105,7 @@ type dstCoverKey struct {
 // Options used in the config file and/or as CLI flags.
 // Precedence: flags > config > defaults.
 // Exception: extensions specified in flags are merged with config extensions.
-type Options struct {
+type options struct {
 	color        bool
 	cores        int
 	debug        bool
@@ -493,7 +492,8 @@ func prepareTags(input *inputDesc, display *Slogger) {
 	}
 
 	var err error
-	input.cuesheet, err = cuesheet.New(input.filetags["cuesheet"])
+	var ErrCuesheet error
+	input.cuesheet, ErrCuesheet = cuesheet.New(input.filetags["cuesheet"])
 	if err != nil {
 		// If no cuesheet was found in the tags, we check for external ones.
 		pathNoext := StripExt(input.path)
@@ -515,7 +515,8 @@ func prepareTags(input *inputDesc, display *Slogger) {
 				display.Warning.Print(err)
 				continue
 			}
-			input.cuesheet, err = cuesheet.New(string(buf))
+
+			input.cuesheet, ErrCuesheet = cuesheet.New(string(buf))
 			break
 		}
 	}
@@ -525,7 +526,7 @@ func prepareTags(input *inputDesc, display *Slogger) {
 	// The number of tracks in current file is usually 1, it can be more if a
 	// cuesheet is found.
 	input.trackCount = 1
-	if input.cuesheet.Files != nil {
+	if ErrCuesheet == nil {
 		// Copy the cuesheet header to the tags. Some entries appear both in the
 		// header and in the track details. We map the cuesheet header entries to
 		// the respective quivalent for FFmpeg tags.
@@ -703,11 +704,10 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 		DST_COVER_CACHE.RUnlock()
 		if marked {
 			return "", nil
-		} else {
-			DST_COVER_CACHE.Lock()
-			DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}] = true
-			DST_COVER_CACHE.Unlock()
 		}
+		DST_COVER_CACHE.Lock()
+		DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}] = true
+		DST_COVER_CACHE.Unlock()
 
 		// Compute checksum of existing cover and early-out if equal.
 		fd, err := os.Open(dst)
@@ -746,13 +746,13 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 			return "", err
 		}
 
-		f, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL, st.Mode())
+		fd, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL, st.Mode())
 		if err != nil {
 			// Either the parent folder is not writable, or a race condition happened:
 			// file was created between existence check and file creation.
 			return "", err
 		}
-		f.Close()
+		fd.Close()
 
 		// Save to cache.
 		dst, err = realpath.Realpath(dst)
@@ -783,17 +783,17 @@ func transferCovers(cover outputCover, coverName string, inputPath string, input
 			return
 		}
 
-		dstFd, err := os.OpenFile(cover.Path, os.O_WRONLY|os.O_TRUNC, 0666)
+		fd, err := os.OpenFile(cover.Path, os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
 			display.Warning.Println(err)
 			return
 		}
 
-		if _, err = io.Copy(dstFd, inputSource); err != nil {
+		if _, err = io.Copy(fd, inputSource); err != nil {
 			display.Warning.Println(err)
 			return
 		}
-		dstFd.Close()
+		fd.Close()
 
 	} else {
 		cover.Path, err = makeCoverDst(cover.Path, inputPath, checksum, display)
@@ -1204,14 +1204,14 @@ func process(queue chan string, quit chan bool) {
 
 // Return the first existing match from 'list'.
 func findscript(name string) (path string, st os.FileInfo, err error) {
-	name_ext := name + ".lua"
+	nameExt := name + ".lua"
 	list := []string{
 		name,
-		name_ext,
+		nameExt,
 		filepath.Join(USER_SCRIPTROOT, name),
-		filepath.Join(USER_SCRIPTROOT, name_ext),
+		filepath.Join(USER_SCRIPTROOT, nameExt),
 		filepath.Join(SYSTEM_SCRIPTROOT, name),
-		filepath.Join(SYSTEM_SCRIPTROOT, name_ext),
+		filepath.Join(SYSTEM_SCRIPTROOT, nameExt),
 	}
 	for _, path := range list {
 		if st, err := os.Stat(path); err == nil {
@@ -1441,7 +1441,8 @@ func main() {
 			}
 			return nil
 		}
-		filepath.Walk(file, visit)
+		// 'visit' always keeps going, so no error.
+		_ = filepath.Walk(file, visit)
 	}
 	close(queue)
 }

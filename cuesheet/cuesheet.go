@@ -51,7 +51,8 @@ type Cuesheet struct {
 	Files  map[string][]Track
 }
 
-// We do not take a path as argument since cuesheets can be found in tags.
+// New initializes a cuesheet from a string.
+// It does not take a path as argument since cuesheets can be found in tags.
 func New(cuesheet string) (Cuesheet, error) {
 	var sheet Cuesheet
 	if cuesheet == "" {

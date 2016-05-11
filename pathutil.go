@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// Like filepath.Base but do not strip the trailing slash. If 'path' is empty,
-// return the empty string.
+// Basename is like filepath.Base but do not strip the trailing slash.
+// If 'path' is empty, return the empty string.
 func Basename(path string) string {
 	if path == "" {
 		return ""
@@ -57,11 +57,8 @@ func CopyFile(dst, src string) error {
 	}
 	defer df.Close()
 
-	if _, err := io.Copy(df, sf); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = io.Copy(df, sf)
+	return err
 }
 
 // Ext returns the file name extension used by path. The extension is the suffix
@@ -79,7 +76,7 @@ func Ext(path string) string {
 	return ""
 }
 
-// Returns s without its extension.
+// StripExt returns s without its extension.
 // Leading dot is included. This is against filepath.Ext() design but conform
 // the Ext() function in this package.
 func StripExt(s string) string {
@@ -113,7 +110,7 @@ func nextSuffix() string {
 	return strconv.Itoa(int(1e9 + r%1e9))[1:]
 }
 
-// Save as io/ioutil.TempFile with suffix.
+// TempFile is like io/ioutil.TempFile with suffix.
 func TempFile(dir, prefix, suffix string) (f *os.File, err error) {
 	if dir == "" {
 		dir = os.TempDir()

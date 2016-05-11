@@ -15,6 +15,7 @@ import (
 
 var displayMutex sync.Mutex
 
+// Slogger is a structured logger for terminal logging.
 type Slogger struct {
 	Debug     *log.Logger
 	Info      *log.Logger
@@ -50,10 +51,12 @@ func newSlogger(debug, color bool) *Slogger {
 	return &sl
 }
 
+// Flush copies the buffers to stderr and stdout and resets the buffers.
 func (sl *Slogger) Flush() {
 	displayMutex.Lock()
-	io.Copy(os.Stderr, &sl.stderrBuf)
-	io.Copy(os.Stdout, &sl.stdoutBuf)
+	// Failure on memory copy means fatal error.
+	_, _ = io.Copy(os.Stderr, &sl.stderrBuf)
+	_, _ = io.Copy(os.Stdout, &sl.stdoutBuf)
 	displayMutex.Unlock()
 
 	sl.stderrBuf.Reset()

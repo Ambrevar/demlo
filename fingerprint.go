@@ -24,7 +24,7 @@ func fingerprint(file string) (fingerprint string, duration int, err error) {
 
 	out, err := cmd.Output()
 	if err != nil {
-		return "", 0, errors.New(fmt.Sprintf("fingerprint: %s", stderr.String()))
+		return "", 0, fmt.Errorf("fingerprint: %s", stderr.String())
 	}
 
 	var durationSlice []byte

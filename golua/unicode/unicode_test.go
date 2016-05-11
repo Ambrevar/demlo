@@ -64,7 +64,10 @@ func TestAll(t *testing.T) {
 	}
 
 	for _, want := range tdt {
-		L.DoString("result = {" + want.code + "}")
+		err := L.DoString("result = {" + want.code + "}")
+		if err != nil {
+			t.Fatal("Error in test data")
+		}
 		L.GetGlobal("result")
 		count := 0
 		for i := 1; ; i++ {

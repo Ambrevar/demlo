@@ -1,4 +1,4 @@
-// This package is not production ready.
+// Package acoustid is not production ready.
 package acoustid
 
 // TODO: replace types with MusicBrainz types? Or keep it independent? See how
@@ -12,8 +12,10 @@ import (
 )
 
 const (
+	// ACOUSTID_URI is the root URI for all the AcoustID requests.
+	ACOUSTID_URI = "http://api.acoustid.org/v2/lookup?client="
+	// ACOUSTID_LOOKUP defines the standard lookup used throughout this package.
 	// Both release and recording IDs are required by MusicBrainz.
-	ACOUSTID_URI    = "http://api.acoustid.org/v2/lookup?client="
 	ACOUSTID_LOOKUP = "&meta=recordings+releases+tracks"
 )
 

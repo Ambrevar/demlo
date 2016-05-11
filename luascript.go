@@ -130,7 +130,7 @@ func makeSandbox(scripts []scriptBuffer, display *Slogger) (*lua.State, error) {
 
 	unicode.GoLuaReplaceFuncs(L)
 
-	// Enclose L in the sandbox.
+	// Enclose L in the sandbox. See 'sandbox.go'.
 	err := L.DoString(sandbox)
 	if err != nil {
 		log.Fatal("Spurious sandbox", err)
@@ -369,7 +369,10 @@ func runScript(L *lua.State, script string, input inputDesc) error {
 	L.GetTable(lua.LUA_REGISTRYINDEX)
 	L.PushString(REGISTRY_SANDBOX)
 	L.GetTable(lua.LUA_REGISTRYINDEX)
-	L.Call(1, 0)
+	err := L.Call(1, 0)
+	if err != nil {
+		log.Fatal("Spurious sandbox", err)
+	}
 
 	makeSandboxInput(L, input)
 	sanitizeOutput(L)
@@ -494,7 +497,7 @@ func scriptOutput(L *lua.State) outputDesc {
 	return output
 }
 
-func loadConfig(config string) Options {
+func loadConfig(config string) options {
 	L := lua.NewState()
 	defer L.Close()
 	L.OpenLibs()
@@ -537,7 +540,7 @@ func loadConfig(config string) Options {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	options := Options{}
+	options := options{}
 
 	L.GetGlobal("color")
 	options.color = L.ToBoolean(-1)

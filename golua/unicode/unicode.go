@@ -1,8 +1,9 @@
 // Copyright © 2013-2016 Pierre Neidhardt <ambrevar@gmail.com>
 // Use of this file is governed by the license that can be found in LICENSE.
 
-// Add unicode support to some functions in golua's string library. Lua patterns
-// are replaced by Go regexps. See https://github.com/google/re2/wiki/Syntax.
+// Package unicode adds unicode support to some functions in golua's string
+// library. Lua patterns are replaced by Go regexps. See
+// https://github.com/google/re2/wiki/Syntax.
 package unicode
 
 import (
@@ -192,7 +193,8 @@ func Gsub(L *lua.State) int {
 			L.PushValue(3)
 			if len(captures) == 1 {
 				L.PushString(captures[0])
-				L.Call(1, 1)
+				// Lua's stdlib leaves errors unhandled.
+				_ = L.Call(1, 1)
 			} else {
 				if !L.CheckStack(len(captures) - 1) {
 					L.RaiseError("too many captures")
@@ -200,6 +202,7 @@ func Gsub(L *lua.State) int {
 				for i := 1; i < len(captures); i++ {
 					L.PushString(captures[i])
 				}
+				// Lua's stdlib leaves errors unhandled.
 				L.Call(len(captures)-1, 1)
 			}
 
