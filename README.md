@@ -30,6 +30,10 @@ Set up a Go environment (see <https://golang.org/doc/install>) and run:
 
 	$ go get bitbucket.org/ambrevar/demlo
 
+To build statically (assuming you have all the required static libraries at hand):
+
+	go build --ldflags '-extldflags "-static -ldl -lm -lz -lstdc++"'
+
 Copy the files as follows:
 
 	demlo   -> /usr/{local/}bin/demlo
