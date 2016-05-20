@@ -91,7 +91,7 @@ var (
 
 	RE_PRINTABLE = regexp.MustCompile(`\pC`)
 
-	DST_COVER_CACHE = struct {
+	VISITED_DST_COVERS = struct {
 		v map[dstCoverKey]bool
 		sync.RWMutex
 	}{v: map[dstCoverKey]bool{}}
@@ -687,7 +687,7 @@ func makeTrackDst(dst string, inputPath string, removeSource bool) (string, erro
 
 // Create a new destination file 'dst'. See makeTrackDst.
 // As a special case, if the checksums match in input and dst, return "", nil.
-// TODO: Test how memoization scales with DST_COVER_CACHE.
+// TODO: Test how memoization scales with VISITED_DST_COVERS.
 func makeCoverDst(dst string, inputPath string, checksum string, display *Slogger) (string, error) {
 	if st, err := os.Stat(dst); err == nil || !os.IsNotExist(err) {
 		// 'dst' exists.
@@ -698,16 +698,15 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 			return "", err
 		}
 
-		// Skip if marked in cache.
-		DST_COVER_CACHE.RLock()
-		marked := DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}]
-		DST_COVER_CACHE.RUnlock()
-		if marked {
+		VISITED_DST_COVERS.RLock()
+		visited := VISITED_DST_COVERS.v[dstCoverKey{path: dst, checksum: checksum}]
+		VISITED_DST_COVERS.RUnlock()
+		if visited {
 			return "", nil
 		}
-		DST_COVER_CACHE.Lock()
-		DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}] = true
-		DST_COVER_CACHE.Unlock()
+		VISITED_DST_COVERS.Lock()
+		VISITED_DST_COVERS.v[dstCoverKey{path: dst, checksum: checksum}] = true
+		VISITED_DST_COVERS.Unlock()
 
 		// Compute checksum of existing cover and early-out if equal.
 		fd, err := os.Open(dst)
@@ -741,6 +740,8 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 		dst = f.Name()
 		f.Close()
 	} else {
+		// 'dst' does not exist.
+
 		st, err := os.Stat(inputPath)
 		if err != nil {
 			return "", err
@@ -759,9 +760,9 @@ func makeCoverDst(dst string, inputPath string, checksum string, display *Slogge
 		if err != nil {
 			return "", err
 		}
-		DST_COVER_CACHE.Lock()
-		DST_COVER_CACHE.v[dstCoverKey{path: dst, checksum: checksum}] = true
-		DST_COVER_CACHE.Unlock()
+		VISITED_DST_COVERS.Lock()
+		VISITED_DST_COVERS.v[dstCoverKey{path: dst, checksum: checksum}] = true
+		VISITED_DST_COVERS.Unlock()
 	}
 
 	return dst, nil
@@ -1420,7 +1421,7 @@ func main() {
 		defer func() { <-quit }()
 	}
 
-	uniqueInput := map[string]bool{}
+	visited := map[string]bool{}
 	for _, file := range flag.Args() {
 		visit := func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.Mode().IsRegular() {
@@ -1435,8 +1436,8 @@ func main() {
 				display.Flush()
 				return nil
 			}
-			if !uniqueInput[rpath] {
-				uniqueInput[rpath] = true
+			if !visited[rpath] {
+				visited[rpath] = true
 				queue <- rpath
 			}
 			return nil
