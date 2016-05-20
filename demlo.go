@@ -59,7 +59,7 @@ const (
 	SCRIPT_MAXSIZE   = 10 * 1024 * 1024
 )
 
-var usage = `Batch-transcode files with user-written scripts for dynamic tagging
+const usage = `Batch-transcode files with user-written scripts for dynamic tagging
 and encoding.
 
 Folders are processed recursively. Only files with known extensions are processed.
@@ -97,6 +97,7 @@ var (
 	}{v: map[dstCoverKey]bool{}}
 )
 
+// Identify visited cover files with {path,checksum} as map key.
 type dstCoverKey struct {
 	path     string
 	checksum string
@@ -122,11 +123,14 @@ type options struct {
 	scripts      scriptSlice
 }
 
+// Load scripts in memory to reduce I/O.
+// We need to store the script name as well for logging.
 type scriptBuffer struct {
 	name string
 	buf  string
 }
 
+// Scripts specified from commandline.
 type scriptSlice []string
 
 func (s *scriptSlice) String() string {
