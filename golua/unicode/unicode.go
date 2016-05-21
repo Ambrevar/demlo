@@ -8,10 +8,11 @@ package unicode
 
 import (
 	"fmt"
-	"github.com/aarzilli/golua/lua"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/aarzilli/golua/lua"
 )
 
 // TODO: Rename package to avoid clashes?

@@ -4,9 +4,10 @@
 package main
 
 import (
-	"github.com/jhprks/damerau"
 	"regexp"
 	"strings"
+
+	"github.com/jhprks/damerau"
 )
 
 var (

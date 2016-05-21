@@ -30,12 +30,10 @@
 package main
 
 import (
-	"bitbucket.org/ambrevar/demlo/acoustid"
 	"bytes"
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"github.com/michiwend/gomusicbrainz"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -46,6 +44,9 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+
+	"bitbucket.org/ambrevar/demlo/acoustid"
+	"github.com/michiwend/gomusicbrainz"
 )
 
 const (
@@ -67,6 +68,9 @@ var (
 	// index releaseIDs by {album, albumartist, year} to avoid confusion on albums
 	// with the same name.
 	// Caches are global and access should be mutually exclusive among goroutines.
+
+	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
+	// the same AlbumKey but refer to a different album?
 	RELEASE_INDEX = struct {
 		v map[AlbumKey]ReleaseID
 		sync.RWMutex
@@ -80,10 +84,8 @@ var (
 		sync.RWMutex
 	}{v: map[ReleaseID]Cover{}}
 
-	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
-	// the same AlbumKey but refer to a different album?
-
 	ErrMissingCover = errors.New("cover not found")
+	ErrUnidentAlbum = errors.New("unidentifiable album")
 )
 
 // RecordingID is the MusicBrainz ID of a specific track. Different remixes have
@@ -178,7 +180,10 @@ func queryMusicBrainz(releaseID ReleaseID) (Tags, error) {
 	return tags, nil
 }
 
-func queryAcoustID(meta acoustid.Meta, tags map[string]string, duration int, display *Slogger) (recordingID RecordingID, releaseID ReleaseID, err error) {
+func queryAcoustID(fr *FileRecord, meta acoustid.Meta, duration int) (recordingID RecordingID, releaseID ReleaseID, err error) {
+	// Shorthand.
+	tags := fr.input.tags
+
 	if meta.Status == "error" {
 		return "", "", errors.New("AcoustID: " + meta.Error.Message)
 	}
@@ -303,7 +308,7 @@ func queryAcoustID(meta acoustid.Meta, tags map[string]string, duration int, dis
 				// In case of tie, position has more weight than year and duration.
 				score := (26*relTitle + 25*relArtist + 13*relAlbumArtist + 13*relAlbum + 9*relPosition + 7*relYear + 7*relDuration) / 100
 
-				display.Debug.Printf(`Score: %.4g
+				fr.Debug.Printf(`Score: %.4g
 %-12s %-7.4g [%v]
 %-12s %-7.4g [%v]
 %-12s %-7.4g [%v]
@@ -320,7 +325,7 @@ Disc %v, Track %v, TrackCount %v: %.4g
 					dbgMedium, dbgTrack, dbgTrackCount, relPosition)
 
 				if score > scoreMax {
-					display.Debug.Printf("New max score: %-7.4g\n", score)
+					fr.Debug.Printf("New max score: %-7.4g\n", score)
 					scoreMax = score
 					releaseID = ReleaseID(acoustRelease.ID)
 					recordingID = RecordingID(acoustRecording.ID)
@@ -402,7 +407,7 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 
 // Return the releaseID corresponding most to tags found in 'input'.
 // When the relation is < RELATION_THRESHOLD, return the zero ReleaseID.
-func queryIndex(input inputDesc) (ReleaseID, AlbumKey) {
+func queryIndex(input *inputInfo) (ReleaseID, AlbumKey) {
 	album := stringNorm(input.tags["album"])
 	if album == "" {
 		// If there is no 'album' tag, use the parent folder path. WARNING: This
@@ -452,11 +457,13 @@ func queryIndex(input inputDesc) (ReleaseID, AlbumKey) {
 	return releaseID, albumKey
 }
 
-func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]string, error) {
+func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
+	input := &fr.input
+
 	var recordingID RecordingID
 
 	releaseID, albumKey := queryIndex(input)
-	display.Debug.Printf("Album cache Key: %q\n", albumKey)
+	fr.Debug.Printf("Album cache Key: %q\n", albumKey)
 
 	TAGS_CACHE.RLock()
 	tags, ok := TAGS_CACHE.v[releaseID]
@@ -483,7 +490,7 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 			return "", nil, err
 		}
 
-		recordingID, releaseID, err = queryAcoustID(meta, input.tags, duration, display)
+		recordingID, releaseID, err = queryAcoustID(fr, meta, duration)
 		if err != nil {
 			return "", nil, err
 		}
@@ -510,7 +517,7 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 		return releaseID, nil, errors.New("unidentifiable album")
 	}
 
-	display.Debug.Print("Release ID: ", releaseID)
+	fr.Debug.Print("Release ID: ", releaseID)
 
 	if recordingID == "" {
 		// Lookup recording in cache. Needed when acoustID was not called.
@@ -571,7 +578,7 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 		return releaseID, nil, errors.New("recording ID absent from cache")
 	}
 
-	display.Debug.Print("Recording ID: ", recordingID)
+	fr.Debug.Print("Recording ID: ", recordingID)
 
 	// At this point, 'release' and 'recording' must be properly set.
 	var result map[string]string
@@ -587,7 +594,9 @@ func getOnlineTags(input inputDesc, display *Slogger) (ReleaseID, map[string]str
 }
 
 // See 'getOnlineTags' comments.
-func getOnlineCover(input inputDesc, releaseID ReleaseID, display *Slogger) (picture []byte, desc inputCover, err error) {
+func getOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc inputCover, err error) {
+	input := &fr.input
+
 	var albumKey AlbumKey
 
 	if releaseID == "" {
@@ -619,7 +628,7 @@ func getOnlineCover(input inputDesc, releaseID ReleaseID, display *Slogger) (pic
 				return nil, inputCover{}, err
 			}
 
-			_, releaseID, err = queryAcoustID(meta, input.tags, duration, display)
+			_, releaseID, err = queryAcoustID(fr, meta, duration)
 			if err != nil {
 				return nil, inputCover{}, err
 			}
@@ -639,7 +648,7 @@ func getOnlineCover(input inputDesc, releaseID ReleaseID, display *Slogger) (pic
 	if len(cover.picture) == 0 {
 		// Dummy entry: The entry that was found was a previously unidentifiable
 		// album.
-		return nil, inputCover{}, errors.New("unidentifiable album")
+		return nil, inputCover{}, ErrUnidentAlbum
 	}
 
 	return cover.picture, cover.desc, nil

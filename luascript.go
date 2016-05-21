@@ -11,11 +11,12 @@
 package main
 
 import (
-	"bitbucket.org/ambrevar/demlo/golua/unicode"
 	"fmt"
-	"github.com/aarzilli/golua/lua"
 	"log"
 	"os"
+
+	"bitbucket.org/ambrevar/demlo/golua/unicode"
+	"github.com/aarzilli/golua/lua"
 )
 
 const (
@@ -106,23 +107,28 @@ func lua2go_outCover(L *lua.State) outputCover {
 
 // The caller is responsible for closing the Lua state.
 // Add a `defer L.Close()` to the calling code if there is no error.
-func makeSandbox(scripts []scriptBuffer, display *Slogger) (*lua.State, error) {
+func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, error) {
 	L := lua.NewState()
 	L.OpenLibs()
 
 	// Register before defining the sandbox: these functions will be restored
 	// together with the sandbox.
-	// The closure allows access to the Debug logger.
+	// The closure allows access to the script logger.
 	lua_debug := func(L *lua.State) int {
-		var arglist []interface{}
-		nargs := L.GetTop()
-		for i := 1; i <= nargs; i++ {
-			if L.IsString(i) {
-				arglist = append(arglist, L.ToString(i))
-			}
-		}
-		display.Debug.Println(arglist...)
 		return 0
+	}
+	if OPTIONS.debug {
+		lua_debug = func(L *lua.State) int {
+			var arglist []interface{}
+			nargs := L.GetTop()
+			for i := 1; i <= nargs; i++ {
+				if L.IsString(i) {
+					arglist = append(arglist, L.ToString(i))
+				}
+			}
+			scriptLog.Println(arglist...)
+			return 0
+		}
 	}
 	L.Register("debug", lua_debug)
 	L.Register("stringnorm", lua_stringNorm)
@@ -167,7 +173,7 @@ func makeSandbox(scripts []scriptBuffer, display *Slogger) (*lua.State, error) {
 	return L, nil
 }
 
-func makeSandboxInput(L *lua.State, input inputDesc) {
+func makeSandboxInput(L *lua.State, input *inputInfo) {
 	L.NewTable()
 
 	setMap(L, "path", input.path)
@@ -257,7 +263,7 @@ func makeSandboxInput(L *lua.State, input inputDesc) {
 	L.Pop(1)
 }
 
-func makeSandboxOutput(L *lua.State, output outputDesc) {
+func makeSandboxOutput(L *lua.State, output *outputInfo) {
 	L.NewTable()
 
 	setMap(L, "path", output.Path)
@@ -332,7 +338,7 @@ func makeSandboxOutput(L *lua.State, output outputDesc) {
 	L.Pop(1)
 }
 
-// The user is responsible for ensuring the integrity of 'output. We convert
+// The user is responsible for ensuring the integrity of 'output'. We convert
 // numbers to strings in tags for convenience.
 func sanitizeOutput(L *lua.State) {
 	L.GetGlobal("output")
@@ -363,7 +369,7 @@ func sanitizeOutput(L *lua.State) {
 	L.Pop(1)
 }
 
-func runScript(L *lua.State, script string, input inputDesc) error {
+func runScript(L *lua.State, script string, input *inputInfo) error {
 	// Restore the sandbox.
 	L.PushString(REGISTRY_RESTORE_SANDBOX)
 	L.GetTable(lua.LUA_REGISTRYINDEX)
@@ -400,8 +406,8 @@ func runScript(L *lua.State, script string, input inputDesc) error {
 	return nil
 }
 
-func scriptOutput(L *lua.State) outputDesc {
-	var output outputDesc
+func scriptOutput(L *lua.State) outputInfo {
+	var output outputInfo
 	output.Tags = make(map[string]string)
 	output.ExternalCovers = make(map[string]outputCover)
 
@@ -572,10 +578,6 @@ func loadConfig(config string) options {
 
 	L.GetGlobal("gettags")
 	options.gettags = L.ToBoolean(-1)
-	L.Pop(1)
-
-	L.GetGlobal("graphical")
-	options.graphical = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("overwrite")

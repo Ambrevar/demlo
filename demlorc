@@ -15,9 +15,6 @@ getcover = false
 -- Fetch tags from an online database.
 gettags = false
 
--- Use human readable output instead of machine-friendly output.
-graphical = true
-
 -- Lua code to run before and after the other scripts, respectively.
 prescript = ''
 postscript = ''

@@ -4,8 +4,9 @@
 package main
 
 import (
-	"bitbucket.org/ambrevar/demlo/cuesheet"
 	"fmt"
+
+	"bitbucket.org/ambrevar/demlo/cuesheet"
 )
 
 /* FFmpegSplitTimes returns the starting time and duration (in FFmpeg CLI format) of a track in a multi-track file.

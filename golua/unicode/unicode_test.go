@@ -6,9 +6,10 @@ package unicode
 // TODO: Add tests for Gmatch.
 
 import (
-	"github.com/aarzilli/golua/lua"
 	"os"
 	"testing"
+
+	"github.com/aarzilli/golua/lua"
 )
 
 var L = lua.NewState()

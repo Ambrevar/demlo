@@ -4,9 +4,11 @@
 package main
 
 import (
-	"bitbucket.org/ambrevar/demlo/cuesheet"
 	"io/ioutil"
+	"log"
 	"testing"
+
+	"bitbucket.org/ambrevar/demlo/cuesheet"
 )
 
 const (
@@ -15,9 +17,11 @@ const (
 	SCRIPT_PUNCTUATION = "scripts/punctuation.lua"
 )
 
+var dummy log.Logger
+
 func TestFixPunctuation(t *testing.T) {
-	input := inputDesc{}
-	output := outputDesc{
+	input := inputInfo{}
+	output := outputInfo{
 		Tags: map[string]string{
 			"a b": "a_b",
 			".a":  ".a",
@@ -35,15 +39,14 @@ func TestFixPunctuation(t *testing.T) {
 	}
 
 	// Compile scripts.
-	display := newSlogger(false, false)
-	L, err := makeSandbox([]scriptBuffer{{name: "punctuation", buf: string(buf)}}, display)
+	L, err := makeSandbox([]scriptBuffer{{name: "punctuation", buf: string(buf)}}, &dummy)
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
 	defer L.Close()
 
-	makeSandboxOutput(L, output)
-	err = runScript(L, "punctuation", input)
+	makeSandboxOutput(L, &output)
+	err = runScript(L, "punctuation", &input)
 	if err != nil {
 		t.Fatalf("script punctuation: %s", err)
 	}
@@ -57,8 +60,8 @@ func TestFixPunctuation(t *testing.T) {
 }
 
 func TestTitleCase(t *testing.T) {
-	input := inputDesc{}
-	output := outputDesc{
+	input := inputInfo{}
+	output := outputInfo{
 		Tags: map[string]string{
 			"All Lowercase Words":                     "all lowercase words",
 			"All Uppercase Words":                     "ALL UPPERCASE WORDS",
@@ -86,15 +89,14 @@ func TestTitleCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	display := newSlogger(false, false)
-	L, err := makeSandbox([]scriptBuffer{{name: "case", buf: string(buf)}}, display)
+	L, err := makeSandbox([]scriptBuffer{{name: "case", buf: string(buf)}}, &dummy)
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
 	defer L.Close()
 
-	makeSandboxOutput(L, output)
-	err = runScript(L, "case", input)
+	makeSandboxOutput(L, &output)
+	err = runScript(L, "case", &input)
 	if err != nil {
 		t.Fatalf("script case: %s", err)
 	}
@@ -108,8 +110,8 @@ func TestTitleCase(t *testing.T) {
 }
 
 func TestSentenceCase(t *testing.T) {
-	input := inputDesc{}
-	output := outputDesc{
+	input := inputInfo{}
+	output := outputInfo{
 		Tags: map[string]string{
 			"Capitalized words":               "capitalized words",
 			"Machine":                         "machine",
@@ -127,8 +129,7 @@ func TestSentenceCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	display := newSlogger(false, false)
-	L, err := makeSandbox([]scriptBuffer{{name: "case", buf: string(buf)}}, display)
+	L, err := makeSandbox([]scriptBuffer{{name: "case", buf: string(buf)}}, &dummy)
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
@@ -138,8 +139,8 @@ func TestSentenceCase(t *testing.T) {
 	L.PushBoolean(true)
 	L.SetGlobal("scase")
 
-	makeSandboxOutput(L, output)
-	err = runScript(L, "case", input)
+	makeSandboxOutput(L, &output)
+	err = runScript(L, "case", &input)
 	if err != nil {
 		t.Fatalf("script case: %s", err)
 	}
