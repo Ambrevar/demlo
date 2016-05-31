@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"crypto/md5"
 	"fmt"
-	"github.com/wtolson/go-taglib"
-	"github.com/yookoala/realpath"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+
+	"github.com/wtolson/go-taglib"
+	"github.com/yookoala/realpath"
 )
 
 type transformer struct{}
@@ -23,22 +24,23 @@ func (t *transformer) Close() {
 
 func (t *transformer) Run(fr *FileRecord) error {
 	input := &fr.input
-	output := fr.output
 
 	// Re-encode / copy / rename.
 	for track := 0; track < input.trackCount; track++ {
-		err := os.MkdirAll(filepath.Dir(output[track].Path), 0777)
+		output := &fr.output[track]
+
+		err := os.MkdirAll(filepath.Dir(output.Path), 0777)
 		if err != nil {
 			fr.Error.Print(err)
 			return err
 		}
 
 		// Copy embeddedCovers, externalCovers and onlineCover.
-		for stream, cover := range output[track].EmbeddedCovers {
+		for stream, cover := range output.EmbeddedCovers {
 			inputSource := bytes.NewBuffer(fr.embeddedCoverCache[stream])
 			transferCovers(fr, cover, "embedded "+strconv.Itoa(stream), inputSource, input.embeddedCovers[stream].checksum)
 		}
-		for file, cover := range output[track].ExternalCovers {
+		for file, cover := range output.ExternalCovers {
 			inputPath := filepath.Join(filepath.Dir(input.path), file)
 			inputSource, err := os.Open(inputPath)
 			if err != nil {
@@ -49,7 +51,7 @@ func (t *transformer) Run(fr *FileRecord) error {
 		}
 		{
 			inputSource := bytes.NewBuffer(fr.onlineCoverCache)
-			transferCovers(fr, output[track].OnlineCover, "online", inputSource, input.onlineCover.checksum)
+			transferCovers(fr, output.OnlineCover, "online", inputSource, input.onlineCover.checksum)
 		}
 
 		// If encoding changed, use FFmpeg. Otherwise, copy/rename the file to
@@ -63,25 +65,25 @@ func (t *transformer) Run(fr *FileRecord) error {
 			encodingChanged = true
 		}
 
-		if input.Format.Format_name != output[track].Format {
+		if input.Format.Format_name != output.Format {
 			encodingChanged = true
 		}
 
-		if len(output[track].Parameters) != 2 ||
-			output[track].Parameters[0] != "-c:a" ||
-			output[track].Parameters[1] != "copy" {
+		if len(output.Parameters) != 2 ||
+			output.Parameters[0] != "-c:a" ||
+			output.Parameters[1] != "copy" {
 			encodingChanged = true
 		}
 
 		// Test if tags have changed.
 		for k, v := range input.tags {
-			if k != "encoder" && output[track].Tags[k] != v {
+			if k != "encoder" && output.Tags[k] != v {
 				tagsChanged = true
 				break
 			}
 		}
 		if !tagsChanged {
-			for k, v := range output[track].Tags {
+			for k, v := range output.Tags {
 				if k != "encoder" && input.tags[k] != v {
 					tagsChanged = true
 					break
@@ -89,187 +91,117 @@ func (t *transformer) Run(fr *FileRecord) error {
 			}
 		}
 
-		// TODO: Move this to 2/3 separate functions.
-		// TODO: Add to condition: `|| output[track].format == "taglib-unsupported-format"`.
+		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
 		if encodingChanged {
-			// Store encoding parameters.
-			ffmpegParameters := []string{}
+			return saveTranscode(fr, track)
+		} else {
+			return saveKeepStream(fr, track, tagsChanged)
+		}
+	}
 
-			// Be verbose only when running a single process. Otherwise output gets
-			// would get messy.
-			if OPTIONS.cores > 1 {
-				ffmpegParameters = append(ffmpegParameters, "-v", "warning")
-			} else {
-				ffmpegParameters = append(ffmpegParameters, "-v", "error")
-			}
+	return nil
+}
 
-			// By default, FFmpeg reads stdin while running. Disable this feature to
-			// avoid unexpected problems.
-			ffmpegParameters = append(ffmpegParameters, "-nostdin")
+func saveTranscode(fr *FileRecord, track int) error {
+	input := &fr.input
+	output := &fr.output[track]
 
-			// FFmpeg should always overwrite: if a temp file is created to avoid
-			// overwriting, FFmpeg should clobber it.
-			ffmpegParameters = append(ffmpegParameters, "-y")
+	// Store encoding parameters.
+	ffmpegParameters := []string{}
 
-			ffmpegParameters = append(ffmpegParameters, "-i", input.path)
+	// Be verbose only when running a single process. Otherwise output gets
+	// would get messy.
+	if OPTIONS.cores > 1 {
+		ffmpegParameters = append(ffmpegParameters, "-v", "warning")
+	} else {
+		ffmpegParameters = append(ffmpegParameters, "-v", "error")
+	}
 
-			// Stream codec.
-			ffmpegParameters = append(ffmpegParameters, output[track].Parameters...)
+	// By default, FFmpeg reads stdin while running. Disable this feature to
+	// avoid unexpected problems.
+	ffmpegParameters = append(ffmpegParameters, "-nostdin")
 
-			// Get cuesheet splitting parameters.
-			if len(input.cuesheet.Files) > 0 {
-				d, _ := strconv.ParseFloat(input.Streams[input.audioIndex].Duration, 64)
-				start, duration := FFmpegSplitTimes(input.cuesheet, input.cuesheetFile, track, d)
-				ffmpegParameters = append(ffmpegParameters, "-ss", start, "-t", duration)
-			}
+	// FFmpeg should always overwrite: if a temp file is created to avoid
+	// overwriting, FFmpeg should clobber it.
+	ffmpegParameters = append(ffmpegParameters, "-y")
 
-			// If there are no covers, do not copy any video stream to avoid errors.
-			if input.Format.Nb_streams < 2 {
-				ffmpegParameters = append(ffmpegParameters, "-vn")
-			}
+	ffmpegParameters = append(ffmpegParameters, "-i", input.path)
 
-			// Remove non-cover streams and extra audio streams.
-			// Must add all streams first.
-			ffmpegParameters = append(ffmpegParameters, "-map", "0")
-			for i := 0; i < input.Format.Nb_streams; i++ {
-				if (input.Streams[i].Codec_type == "video" && input.Streams[i].Codec_name != "image2" && input.Streams[i].Codec_name != "png" && input.Streams[i].Codec_name != "mjpeg") ||
-					(input.Streams[i].Codec_type == "audio" && i > input.audioIndex) ||
-					(input.Streams[i].Codec_type != "audio" && input.Streams[i].Codec_type != "video") {
-					ffmpegParameters = append(ffmpegParameters, "-map", "-0:"+strconv.Itoa(i))
-				}
-			}
+	// Stream codec.
+	ffmpegParameters = append(ffmpegParameters, output.Parameters...)
 
-			// Remove subtitles if any.
-			ffmpegParameters = append(ffmpegParameters, "-sn")
+	// Get cuesheet splitting parameters.
+	if len(input.cuesheet.Files) > 0 {
+		d, _ := strconv.ParseFloat(input.Streams[input.audioIndex].Duration, 64)
+		start, duration := FFmpegSplitTimes(input.cuesheet, input.cuesheetFile, track, d)
+		ffmpegParameters = append(ffmpegParameters, "-ss", start, "-t", duration)
+	}
 
-			// '-map_metadata -1' clears all metadata first.
-			ffmpegParameters = append(ffmpegParameters, "-map_metadata", "-1")
+	// If there are no covers, do not copy any video stream to avoid errors.
+	if input.Format.Nb_streams < 2 {
+		ffmpegParameters = append(ffmpegParameters, "-vn")
+	}
 
-			for tag, value := range output[track].Tags {
-				ffmpegParameters = append(ffmpegParameters, "-metadata", tag+"="+value)
-			}
+	// Remove non-cover streams and extra audio streams.
+	// Must add all streams first.
+	ffmpegParameters = append(ffmpegParameters, "-map", "0")
+	for i := 0; i < input.Format.Nb_streams; i++ {
+		if (input.Streams[i].Codec_type == "video" && input.Streams[i].Codec_name != "image2" && input.Streams[i].Codec_name != "png" && input.Streams[i].Codec_name != "mjpeg") ||
+			(input.Streams[i].Codec_type == "audio" && i > input.audioIndex) ||
+			(input.Streams[i].Codec_type != "audio" && input.Streams[i].Codec_type != "video") {
+			ffmpegParameters = append(ffmpegParameters, "-map", "-0:"+strconv.Itoa(i))
+		}
+	}
 
-			// Format.
-			ffmpegParameters = append(ffmpegParameters, "-f", output[track].Format)
+	// Remove subtitles if any.
+	ffmpegParameters = append(ffmpegParameters, "-sn")
 
-			// Output file.
-			// FFmpeg cannot transcode inplace, so we force creating a temp file if
-			// necessary.
-			var dst string
-			dst, err := makeTrackDst(output[track].Path, input.path, false)
+	// '-map_metadata -1' clears all metadata first.
+	ffmpegParameters = append(ffmpegParameters, "-map_metadata", "-1")
+
+	for tag, value := range output.Tags {
+		ffmpegParameters = append(ffmpegParameters, "-metadata", tag+"="+value)
+	}
+
+	// Format.
+	ffmpegParameters = append(ffmpegParameters, "-f", output.Format)
+
+	// Output file.
+	// FFmpeg cannot transcode inplace, so we force creating a temp file if
+	// necessary.
+	dst, isInplace, err := makeTrackDst(output.Path, input.path, false)
+	if err != nil {
+		fr.Error.Print(err)
+		return err
+	}
+	ffmpegParameters = append(ffmpegParameters, dst)
+
+	fr.Debug.Printf("Audio %v parameters: %q", track, ffmpegParameters)
+
+	cmd := exec.Command("ffmpeg", ffmpegParameters...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		fr.Error.Printf(stderr.String())
+		return err
+	}
+
+	if OPTIONS.removesource {
+		if err != nil {
+			fr.Error.Print(err)
+			return err
+		}
+		if isInplace {
+			err = os.Rename(dst, input.path)
 			if err != nil {
 				fr.Error.Print(err)
-				return err
-			}
-			ffmpegParameters = append(ffmpegParameters, dst)
-
-			fr.Debug.Printf("Audio %v parameters: %q", track, ffmpegParameters)
-
-			cmd := exec.Command("ffmpeg", ffmpegParameters...)
-			var stderr bytes.Buffer
-			cmd.Stderr = &stderr
-
-			err = cmd.Run()
-			if err != nil {
-				fr.Error.Printf(stderr.String())
-				return err
-			}
-
-			if OPTIONS.removesource {
-				// TODO: This realpath is already expanded in 'makeTrackDst'. Factor
-				// it.
-				output[track].Path, err = realpath.Realpath(output[track].Path)
-				if err != nil {
-					fr.Error.Print(err)
-					return err
-				}
-				if input.path == output[track].Path {
-					// If inplace, rename.
-					err = os.Rename(dst, output[track].Path)
-					if err != nil {
-						fr.Error.Print(err)
-					}
-				} else {
-					err = os.Remove(input.path)
-					if err != nil {
-						fr.Error.Print(err)
-					}
-				}
 			}
 		} else {
-			var err error
-			var dst string
-			dst, err = makeTrackDst(output[track].Path, input.path, OPTIONS.removesource)
+			err = os.Remove(input.path)
 			if err != nil {
 				fr.Error.Print(err)
-				return err
-			}
-
-			if input.path != dst {
-				// Copy/rename file if not inplace.
-				err = nil
-				if OPTIONS.removesource {
-					err = os.Rename(input.path, dst)
-				}
-				if err != nil || !OPTIONS.removesource {
-					// If renaming failed, it might be because of a cross-device
-					// destination. We try to copy instead.
-					err := CopyFile(dst, input.path)
-					if err != nil {
-						fr.Error.Println(err)
-						return err
-					}
-					if OPTIONS.removesource {
-						err = os.Remove(input.path)
-						if err != nil {
-							fr.Error.Println(err)
-						}
-					}
-				}
-			}
-
-			if tagsChanged {
-				// TODO: Can TagLib remove extra tags?
-				f, err := taglib.Read(dst)
-				if err != nil {
-					fr.Error.Print(err)
-					return err
-				}
-				defer f.Close()
-
-				// TODO: Arbitrary tag support with taglib?
-				if output[track].Tags["album"] != "" {
-					f.SetAlbum(output[track].Tags["album"])
-				}
-				if output[track].Tags["artist"] != "" {
-					f.SetArtist(output[track].Tags["artist"])
-				}
-				if output[track].Tags["comment"] != "" {
-					f.SetComment(output[track].Tags["comment"])
-				}
-				if output[track].Tags["genre"] != "" {
-					f.SetGenre(output[track].Tags["genre"])
-				}
-				if output[track].Tags["title"] != "" {
-					f.SetTitle(output[track].Tags["title"])
-				}
-				if output[track].Tags["track"] != "" {
-					t, err := strconv.Atoi(output[track].Tags["track"])
-					if err == nil {
-						f.SetTrack(t)
-					}
-				}
-				if output[track].Tags["date"] != "" {
-					t, err := strconv.Atoi(output[track].Tags["date"])
-					if err == nil {
-						f.SetYear(t)
-					}
-				}
-
-				err = f.Save()
-				if err != nil {
-					fr.Error.Print(err)
-				}
 			}
 		}
 	}
@@ -277,46 +209,136 @@ func (t *transformer) Run(fr *FileRecord) error {
 	return nil
 }
 
+func saveKeepStream(fr *FileRecord, track int, tagsChanged bool) error {
+	input := &fr.input
+	output := &fr.output[track]
+
+	dst, isInplace, err := makeTrackDst(output.Path, input.path, OPTIONS.removesource)
+	if err != nil {
+		fr.Error.Print(err)
+		return err
+	}
+
+	if !isInplace {
+		err = nil
+		if OPTIONS.removesource {
+			err = os.Rename(input.path, dst)
+		}
+		if err != nil || !OPTIONS.removesource {
+			// If renaming failed, it might be because of a cross-device
+			// destination. We try to copy instead.
+			err := CopyFile(dst, input.path)
+			if err != nil {
+				fr.Error.Println(err)
+				return err
+			}
+			if OPTIONS.removesource {
+				err = os.Remove(input.path)
+				if err != nil {
+					fr.Error.Println(err)
+				}
+			}
+		}
+	}
+
+	if tagsChanged {
+		// TODO: Can TagLib remove extra tags?
+		f, err := taglib.Read(dst)
+		if err != nil {
+			fr.Error.Print(err)
+			return err
+		}
+		defer f.Close()
+
+		// TODO: Arbitrary tag support with taglib?
+		if output.Tags["album"] != "" {
+			f.SetAlbum(output.Tags["album"])
+		}
+		if output.Tags["artist"] != "" {
+			f.SetArtist(output.Tags["artist"])
+		}
+		if output.Tags["comment"] != "" {
+			f.SetComment(output.Tags["comment"])
+		}
+		if output.Tags["genre"] != "" {
+			f.SetGenre(output.Tags["genre"])
+		}
+		if output.Tags["title"] != "" {
+			f.SetTitle(output.Tags["title"])
+		}
+		if output.Tags["track"] != "" {
+			t, err := strconv.Atoi(output.Tags["track"])
+			if err == nil {
+				f.SetTrack(t)
+			}
+		}
+		if output.Tags["date"] != "" {
+			t, err := strconv.Atoi(output.Tags["date"])
+			if err == nil {
+				f.SetYear(t)
+			}
+		}
+
+		err = f.Save()
+		if err != nil {
+			fr.Error.Print(err)
+		}
+	}
+	return nil
+}
+
 // Create a new destination file 'dst'.
+//
+// As an additional informational value, it says if the real paths of outputPath
+// and inputPath are the same. It saves the need for recomputing that value
+// later on.
+//
 // As a special case, if 'inputPath == dst' and 'removesource == true',
 // then modify the file inplace.
 // If no third-party program overwrites existing files, this approach cannot
 // clobber existing files.
-func makeTrackDst(dst string, inputPath string, removeSource bool) (string, error) {
-	if _, err := os.Stat(dst); err == nil || !os.IsNotExist(err) {
-		// 'dst' exists.
-		// The realpath is required to check if inplace.
-		// The 'realpath' can only be expanded when the parent folder exists.
-		dst, err = realpath.Realpath(dst)
+func makeTrackDst(outputPath string, inputPath string, removeSource bool) (dst string, isInplace bool, err error) {
+	if _, err := os.Stat(outputPath); err == nil || !os.IsNotExist(err) {
+		// 'outputPath' exists.
+		// The realpath is required to see if transformation is inplace.
+		// The realpath can only be expanded when the parent folder exists.
+		dst, err = realpath.Realpath(outputPath)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 
-		if inputPath != dst || !removeSource {
-			// If not inplace, create a temp file.
-			f, err := TempFile(filepath.Dir(dst), StripExt(filepath.Base(dst))+"_", "."+Ext(dst))
-			if err != nil {
-				return "", err
+		if inputPath == dst {
+			isInplace = true
+		} else {
+			if !removeSource {
+				// If not inplace, create a temp file.
+				f, err := TempFile(filepath.Dir(dst), StripExt(filepath.Base(dst))+"_", "."+Ext(dst))
+				if err != nil {
+					return "", false, err
+				}
+				dst = f.Name()
+				f.Close()
 			}
-			dst = f.Name()
-			f.Close()
 		}
 	} else {
+		// 'outputPath' does not exist.
 		st, err := os.Stat(inputPath)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 
-		f, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL, st.Mode())
+		f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_EXCL, st.Mode())
 		if err != nil {
 			// Either the parent folder is not writable, or a race condition happened:
-			// file was created between existence check and file creation.
-			return "", err
+			// another file with the same path was created between existence check and
+			// creation.
+			return "", false, err
 		}
 		f.Close()
+		dst = outputPath
 	}
 
-	return dst, nil
+	return dst, false, nil
 }
 
 // Create a new destination file 'dst'. See makeTrackDst.
