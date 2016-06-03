@@ -14,6 +14,9 @@ import (
 	"github.com/yookoala/realpath"
 )
 
+// transformer applies the changes resulting from the script run.
+// If the audio stream needs to be transcoded, it calls FFmpeg to apply all the changes.
+// Otherwise, it copies / renames the file and changes metadata with TagLib if necessary.
 type transformer struct{}
 
 func (t *transformer) Init() {

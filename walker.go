@@ -6,6 +6,8 @@ import (
 	"github.com/yookoala/realpath"
 )
 
+// walker feeds the output channel with files.
+// Duplicates are discarded.
 type walker struct {
 	visited map[string]bool
 }
