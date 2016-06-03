@@ -30,7 +30,10 @@ var errNonAudio = errors.New("Non-audio file")
 var stdoutMutex sync.Mutex
 
 // analyzer loads file metadata into the file record, run the scripts and preview the result.
-// TODO: Split analyzer into analyzer, scriptrunner, previewer?
+// If required, it will fetch additional input metadata online.
+// This stage does not split elegantly:
+// - defaultTags need to be passed to the running script.
+// - The preview depends on prepareTrackTags.
 type analyzer struct {
 	L         *lua.State
 	scriptLog *log.Logger
@@ -150,6 +153,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 			}
 		}
 	}
+
 	if previewOptions.printIndex {
 		// Should never fail.
 		buf1, _ := json.Marshal(input.path)
@@ -494,6 +498,14 @@ func prettyPrint(fr *FileRecord, attr, input, output string, attrMaxlen, valueMa
 func preview(fr *FileRecord, track int) {
 	input := &fr.input
 	output := &fr.output[track]
+
+	maxCols, _, err := TerminalSize(int(os.Stderr.Fd()))
+	if err != nil {
+		// Can this happen? It would mean that os.Stderr has changed during
+		// execution since we did the TerminalSize() check in main().
+		return
+	}
+
 	prepareTrackTags(input, track)
 
 	attrMaxlen := len("parameters")
@@ -509,10 +521,6 @@ func preview(fr *FileRecord, track int) {
 		}
 	}
 
-	maxCols, _, err := TerminalSize(int(os.Stderr.Fd()))
-	if err != nil {
-		log.Fatal(err)
-	}
 	// 'valueMaxlen' is the available width for input and output values. We
 	// subtract some characters for the ' | ' around the attribute name and the
 	// brackets around the values.

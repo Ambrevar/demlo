@@ -19,11 +19,9 @@ import (
 // Otherwise, it copies / renames the file and changes metadata with TagLib if necessary.
 type transformer struct{}
 
-func (t *transformer) Init() {
-}
+func (t *transformer) Init() {}
 
-func (t *transformer) Close() {
-}
+func (t *transformer) Close() {}
 
 func (t *transformer) Run(fr *FileRecord) error {
 	input := &fr.input

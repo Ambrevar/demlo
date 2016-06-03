@@ -16,8 +16,7 @@ func (w *walker) Init() {
 	w.visited = map[string]bool{}
 }
 
-func (w *walker) Close() {
-}
+func (w *walker) Close() {}
 
 func (w *walker) Run(fr *FileRecord) error {
 	if !options.extensions[strings.ToLower(Ext(fr.input.path))] {

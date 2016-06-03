@@ -411,13 +411,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Disable formatted output if piped.
+	// Enable index output if stdout is redirected.
 	st, _ = os.Stdout.Stat()
 	if (st.Mode() & os.ModeCharDevice) == 0 {
 		previewOptions.printIndex = true
 	}
+	// Disable diff preview if stderr is does not have a 'TerminalSize'.
 	st, _ = os.Stderr.Stat()
 	if (st.Mode() & os.ModeCharDevice) == 0 {
+		options.color = false
+		previewOptions.printDiff = false
+	} else if _, _, err := TerminalSize(int(os.Stderr.Fd())); err != nil {
 		options.color = false
 		previewOptions.printDiff = false
 	}
