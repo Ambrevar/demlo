@@ -30,11 +30,20 @@ Set up a Go environment (see <https://golang.org/doc/install>) and run:
 
 	$ go get bitbucket.org/ambrevar/demlo
 
+The version number is set at compilation time. To package a specific version,
+checkout the corresponding tag and set `version` from the build command, e.g.:
+
+	go build -ldflags "-X main.version=r$(git rev-list --count HEAD).$(git describe --tags --always).$(git log -1 --format="%cd" --date=short)"
+
+or simply
+
+	go build -ldflags "-X main.version=$(git describe --tags --always)"
+
 To build statically (assuming you have all the required static libraries at hand):
 
-	go build --ldflags '-extldflags "-static -ldl -lm -lz -lstdc++"'
+	go build -ldflags '-extldflags "-static -ldl -lm -lz -lstdc++"'
 
-Copy the files as follows:
+Install the files as follows:
 
 	demlo   -> /usr/{local/}bin/demlo
 	demlorc -> /usr/{local/}share/demlo/demlorc
@@ -47,4 +56,3 @@ See `demlo -h` and the [home page](http://ambrevar.bitbucket.org/demlo/).
 ## License
 
 See LICENSE.
-

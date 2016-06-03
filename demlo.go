@@ -38,18 +38,11 @@ import (
 
 const (
 	application = "demlo"
-	// TODO: Set from compilation.
-	version   = "2-rolling"
-	copyright = "Copyright (C) 2013-2016 Pierre Neidhardt"
-	URL       = "http://ambrevar.bitbucket.org/demlo"
-
-	// coverChecksumBlock limits cover checksums to this amount of bytes for performance gain.
-	coverChecksumBlock = 8 * 4096
-	// 10M seems to be a reasonable max.
-	cuesheetMaxsize = 10 * 1024 * 1024
-	indexMaxsize    = 10 * 1024 * 1024
-	scriptMaxsize   = 10 * 1024 * 1024
+	copyright   = "Copyright (C) 2013-2016 Pierre Neidhardt"
+	URL         = "http://ambrevar.bitbucket.org/demlo"
 )
+
+var version = "tip"
 
 const usage = `Batch-transcode files with user-written scripts for dynamic tagging
 and encoding.
@@ -62,6 +55,15 @@ take the true value. To negate them, use the form '-flag=false'.
 
 See ` + URL + ` for more details.
 `
+
+const (
+	// coverChecksumBlock limits cover checksums to this amount of bytes for performance gain.
+	coverChecksumBlock = 8 * 4096
+	// 10M seems to be a reasonable max.
+	cuesheetMaxsize = 10 * 1024 * 1024
+	indexMaxsize    = 10 * 1024 * 1024
+	scriptMaxsize   = 10 * 1024 * 1024
+)
 
 var (
 	XDG_CONFIG_HOME = os.Getenv("XDG_CONFIG_HOME")
