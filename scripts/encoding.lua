@@ -6,7 +6,7 @@
 -- TODO: Check which format supports video streams. (E.g. for embedded covers.)
 
 -- Global options.
--- If 'bitrate' is not specified, assume highest value. 'bitrate' should not be
+-- If 'bps' is not specified, assume highest value. 'bps' should not be
 -- set to 'input.bitrate', or the bitrate of the first track will propagate to
 -- other tracks.
 local bitrate = bps or 9999999
@@ -21,7 +21,7 @@ if output.format == '' or output.format == input.format.format_name then
 	if input.format.format_name == 'ape' or input.format.format_name == 'wav' then
 		-- FFmpeg does not support 'ape' encoding. 'wav' is too big.
 
-		-- Force reencoding. Lossless format do not use the bitrate value, we
+		-- Force reencoding. Lossless formats do not use the bitrate value, we
 		-- decrement the bitrate just to trigger the stream encoding condition.
 		bitrate = input.bitrate - 1
 
