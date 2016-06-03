@@ -8,6 +8,7 @@ import (
 
 // Stage is the interface implemented by an object that can be added to a
 // pipeline to process incoming FileRecords.
+// Multiple stages of the same kind can be run in parallel.
 // Init() and Close() are run once per goroutine.
 type Stage interface {
 	Init()
@@ -15,14 +16,14 @@ type Stage interface {
 	Close()
 }
 
-// Pipeline processes FileRecords through a sequence of stages. A FileRecord
-// is forwarded to the 'log' channel when a stage returns an error, or to the
-// 'output' channel otherwise.
+// Pipeline processes FileRecords through a sequence of Stages. A FileRecord is
+// forwarded to the 'log' channel when a Stage Run() function returns an error,
+// or to the 'output' channel otherwise.
 //
-// The advantage of a pipeline design:
-// - Ensures log messages grouped by FileRecord and does not require manual log flushing.
-// - Removes some parallelization boilerplate such as the channel loops.
-// - Makes it easy to change the number of goroutines allocated to the various stages.
+// The pipeline design automates a few things:
+// - It groups log messages by FileRecord; no manual flushing required.
+// - It removes some parallelization boilerplate such as channel loops.
+// - It makes it easy to change the number of goroutines allocated to the various stages.
 type Pipeline struct {
 	input  chan *FileRecord
 	output chan *FileRecord
@@ -30,8 +31,8 @@ type Pipeline struct {
 	logWg  sync.WaitGroup
 }
 
-// NewPipeline initializes a pipeline with an input queue and a log queue.
-// The pipeline waits until its input channel is fed.
+// NewPipeline initializes a Pipeline with an input queue and a log queue.
+// The Pipeline waits until its input channel is fed.
 func NewPipeline(inputQueueSize, logQueueSize int) *Pipeline {
 	var p Pipeline
 	p.input = make(chan *FileRecord, inputQueueSize)
@@ -50,10 +51,10 @@ func NewPipeline(inputQueueSize, logQueueSize int) *Pipeline {
 	return &p
 }
 
-// Add appends a new stage to the pipeline.
-// The pipeline 'input' does not change, but its 'output' gets forwarded to the
-// new stage. The stage can be parallelized 'routineCount' times. 'routineCount'
-// must be >0. 'NewStage' initializes a stage structure for each goroutine. It
+// Add appends a new stage to the Pipeline.
+// The Pipeline 'input' does not change, but its 'output' gets forwarded to the
+// new Stage. The Stage can be parallelized 'routineCount' times. 'routineCount'
+// must be >0. 'NewStage' initializes a Stage structure for each goroutine. It
 // allows for data separation between goroutines and keeps the Stage interface
 // implicit.
 func (p *Pipeline) Add(NewStage func() Stage, routineCount int) {
@@ -95,7 +96,7 @@ func (p *Pipeline) Add(NewStage func() Stage, routineCount int) {
 	}()
 }
 
-// Close the pipeline to log everything.
+// Close the Pipeline to finish logging.
 // Call it once the input has been fully produced and the output fully consumed.
 func (p *Pipeline) Close() {
 	close(p.log)

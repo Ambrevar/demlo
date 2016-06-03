@@ -55,7 +55,7 @@ adjust the output of the script for the current run only.
 - Demlo makes some last-minute tweaking if need be: it adjusts the bitrate, the
 path, the encoding parameters, and so on.
 
-- A preview is displayed.
+- A preview of changes is displayed.
 
 - When applying changes, the covers get copied if required and the audio file
 gets processed: tags are modified as specified, the file is re-encoded if

@@ -490,10 +490,9 @@ func main() {
 	}
 
 	// Pipeline.
-	// Log should be able to hold all routines at once.
+	// The log queue should be able to hold all routines at once.
 	p := NewPipeline(1, 1+options.cores+options.cores)
 
-	// TODO: Is there a more elegant way to pass a stage?
 	p.Add(func() Stage { return &walker{} }, 1)
 	p.Add(func() Stage { return &analyzer{} }, options.cores)
 
@@ -501,8 +500,8 @@ func main() {
 		p.Add(func() Stage { return &transformer{} }, options.cores)
 	}
 
-	// Produce pipeline input. This should be done after initializing the output
-	// consumption or run in parallel.
+	// Produce pipeline input. This should be run in parallel to pipeline
+	// consumption.
 	go func() {
 		for _, file := range flag.Args() {
 			visit := func(path string, info os.FileInfo, err error) error {
