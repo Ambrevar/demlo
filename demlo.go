@@ -67,7 +67,6 @@ const (
 
 var (
 	XDG_CONFIG_HOME = os.Getenv("XDG_CONFIG_HOME")
-	XDG_CONFIG_DIRS = os.Getenv("XDG_CONFIG_DIRS")
 	XDG_DATA_DIRS   = os.Getenv("XDG_DATA_DIRS")
 
 	systemScriptRoot string
@@ -307,10 +306,6 @@ func init() {
 
 	if XDG_CONFIG_HOME == "" {
 		XDG_CONFIG_HOME = filepath.Join(os.Getenv("HOME"), ".config")
-	}
-
-	if XDG_CONFIG_DIRS == "" {
-		XDG_CONFIG_DIRS = "/etc/xdg"
 	}
 
 	if XDG_DATA_DIRS == "" {
