@@ -58,7 +58,6 @@ func (t *transformer) Run(fr *FileRecord) error {
 		// speed up the process. If tags have changed but not the encoding, we use
 		// taglib to set them.
 		var encodingChanged = false
-		var tagsChanged = false
 
 		if input.trackCount > 1 {
 			// Split cue-sheet.
@@ -75,34 +74,17 @@ func (t *transformer) Run(fr *FileRecord) error {
 			encodingChanged = true
 		}
 
-		// Test if tags have changed.
-		for k, v := range input.tags {
-			if k != "encoder" && output.Tags[k] != v {
-				tagsChanged = true
-				break
-			}
-		}
-		if !tagsChanged {
-			for k, v := range output.Tags {
-				if k != "encoder" && input.tags[k] != v {
-					tagsChanged = true
-					break
-				}
-			}
-		}
-
 		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
 		if encodingChanged {
-			return saveTranscode(fr, track)
+			return transformStream(fr, track)
 		}
-		return saveKeepStream(fr, track, tagsChanged)
+		return transformMetadata(fr, track)
 	}
 
 	return nil
 }
 
-// TODO: rename save* functions.
-func saveTranscode(fr *FileRecord, track int) error {
+func transformStream(fr *FileRecord, track int) error {
 	input := &fr.input
 	output := &fr.output[track]
 
@@ -209,7 +191,7 @@ func saveTranscode(fr *FileRecord, track int) error {
 	return nil
 }
 
-func saveKeepStream(fr *FileRecord, track int, tagsChanged bool) error {
+func transformMetadata(fr *FileRecord, track int) error {
 	input := &fr.input
 	output := &fr.output[track]
 
@@ -237,6 +219,23 @@ func saveKeepStream(fr *FileRecord, track int, tagsChanged bool) error {
 				if err != nil {
 					fr.Error.Println(err)
 				}
+			}
+		}
+	}
+
+	var tagsChanged = false
+
+	for k, v := range input.tags {
+		if k != "encoder" && output.Tags[k] != v {
+			tagsChanged = true
+			break
+		}
+	}
+	if !tagsChanged {
+		for k, v := range output.Tags {
+			if k != "encoder" && input.tags[k] != v {
+				tagsChanged = true
+				break
 			}
 		}
 	}
