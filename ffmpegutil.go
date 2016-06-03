@@ -9,7 +9,7 @@ import (
 	"bitbucket.org/ambrevar/demlo/cuesheet"
 )
 
-/* FFmpegSplitTimes returns the starting time and duration (in FFmpeg CLI format) of a track in a multi-track file.
+/* ffmpegSplitTimes returns the starting time and duration (in FFmpeg CLI format) of a track in a multi-track file.
 
 Since a cuesheet does not contain the total duration, we cannot infere last
 track's duration only from the sheet. We need to pass it as parameter.
@@ -23,7 +23,7 @@ silences. But always skipping the first index (if there is a second one) might
 not be he desired result either. Finally, there could be more than 2 indices,
 even thought I have no clue to what use. Rationale needed.
 */
-func FFmpegSplitTimes(sheet cuesheet.Cuesheet, file string, track int, totalduration float64) (start, duration string) {
+func ffmpegSplitTimes(sheet cuesheet.Cuesheet, file string, track int, totalduration float64) (start, duration string) {
 
 	var totalmsec int
 

@@ -37,18 +37,18 @@ import (
 )
 
 const (
-	APPLICATION = "demlo"
+	application = "demlo"
 	// TODO: Set from compilation.
-	VERSION   = "2-rolling"
-	COPYRIGHT = "Copyright (C) 2013-2016 Pierre Neidhardt"
+	version   = "2-rolling"
+	copyright = "Copyright (C) 2013-2016 Pierre Neidhardt"
 	URL       = "http://ambrevar.bitbucket.org/demlo"
 
-	// COVER_CHECKSUM_BLOCK limits cover checksums to this amount of bytes for performance gain.
-	COVER_CHECKSUM_BLOCK = 8 * 4096
+	// coverChecksumBlock limits cover checksums to this amount of bytes for performance gain.
+	coverChecksumBlock = 8 * 4096
 	// 10M seems to be a reasonable max.
-	CUESHEET_MAXSIZE = 10 * 1024 * 1024
-	INDEX_MAXSIZE    = 10 * 1024 * 1024
-	SCRIPT_MAXSIZE   = 10 * 1024 * 1024
+	cuesheetMaxsize = 10 * 1024 * 1024
+	indexMaxsize    = 10 * 1024 * 1024
+	scriptMaxsize   = 10 * 1024 * 1024
 )
 
 const usage = `Batch-transcode files with user-written scripts for dynamic tagging
@@ -68,31 +68,32 @@ var (
 	XDG_CONFIG_DIRS = os.Getenv("XDG_CONFIG_DIRS")
 	XDG_DATA_DIRS   = os.Getenv("XDG_DATA_DIRS")
 
-	SYSTEM_SCRIPTROOT string
-	USER_SCRIPTROOT   string
-	CONFIG            string
+	systemScriptRoot string
+	userScriptRoot   string
+	config           string
 
-	COVER_EXT_LIST = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
+	coverExtList = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
 
-	OPTIONS = options{}
+	options = optionSet{}
 
-	// TODO: Rename PRINT_* variables.
-	PRINT_INDEX     = false
-	PRINT_GRAPHICAL = true
+	previewOptions = struct {
+		printIndex bool
+		printDiff  bool
+	}{false, true}
 
-	CACHE = struct {
+	cache = struct {
 		index   map[string][]outputInfo
 		scripts []scriptBuffer
 	}{}
 
-	RE_PRINTABLE = regexp.MustCompile(`\pC`)
+	rePrintable = regexp.MustCompile(`\pC`)
 
-	VISITED_DST_COVERS = struct {
+	visitedDstCovers = struct {
 		v map[dstCoverKey]bool
 		sync.RWMutex
 	}{v: map[dstCoverKey]bool{}}
 
-	ErrInputFile = errors.New("Cannot process input file")
+	errInputFile = errors.New("Cannot process input file")
 )
 
 // Identify visited cover files with {path,checksum} as map key.
@@ -105,7 +106,7 @@ type dstCoverKey struct {
 // TODO: Can we use an anonymous structure?
 // Precedence: flags > config > defaults.
 // Exception: extensions specified in flags are merged with config extensions.
-type options struct {
+type optionSet struct {
 	color        bool
 	cores        int
 	debug        bool
@@ -133,7 +134,7 @@ type scriptSlice []string
 
 func (s *scriptSlice) String() string {
 	// Print the default/config value.
-	return fmt.Sprintf("%q", OPTIONS.scripts)
+	return fmt.Sprintf("%q", options.scripts)
 }
 func (s *scriptSlice) Set(arg string) error {
 	*s = append(*s, arg)
@@ -193,20 +194,20 @@ type inputInfo struct {
 
 	// FFmpeg data.
 	Streams []struct {
-		Bit_rate   string
-		Codec_name string
-		Codec_type string
-		Duration   string
-		Height     int
-		Tags       map[string]string
-		Width      int
+		Bitrate   string `json:"bit_rate"`
+		CodecName string `json:"codec_name"`
+		CodecType string `json:"codec_type"`
+		Duration  string
+		Height    int
+		Tags      map[string]string
+		Width     int
 	}
 	Format struct {
-		Bit_rate    string
-		Duration    string
-		Format_name string
-		Nb_streams  int
-		Tags        map[string]string
+		Bitrate    string `json:"bit_rate"`
+		Duration   string
+		FormatName string `json:"format_name"`
+		NbStreams  int    `json:"nb_streams"`
+		Tags       map[string]string
 	}
 
 	// The following details for multi-track files are not transferred to Lua.
@@ -229,6 +230,8 @@ type outputInfo struct {
 	OnlineCover    outputCover
 }
 
+// FileRecord holds the data passed through the pipeline.
+// It contains, for one file, the input metadata, the output changes, some cache, and the logger.
 type FileRecord struct {
 	input  inputInfo
 	output []outputInfo
@@ -250,7 +253,7 @@ func (f *FileRecord) String() string {
 	return f.logBuf.String()
 }
 
-func NewFileRecord(path string) *FileRecord {
+func newFileRecord(path string) *FileRecord {
 	fr := FileRecord{}
 	fr.input.path = path
 
@@ -261,11 +264,11 @@ func NewFileRecord(path string) *FileRecord {
 	fr.Warning = log.New(&fr.logBuf, ":: Warning: ", 0)
 	fr.Error = log.New(&fr.logBuf, ":: Error: ", 0)
 
-	if OPTIONS.debug {
+	if options.debug {
 		fr.Debug.SetOutput(&fr.logBuf)
 	}
 
-	if OPTIONS.color {
+	if options.color {
 		fr.Debug.SetPrefix(ansi.Color(fr.Debug.Prefix(), "cyan+b"))
 		fr.Info.SetPrefix(ansi.Color(fr.Info.Prefix(), "magenta+b"))
 		fr.Section.SetPrefix(ansi.Color(fr.Section.Prefix(), "green+b"))
@@ -282,10 +285,10 @@ func findScript(name string) (path string, st os.FileInfo, err error) {
 	list := []string{
 		name,
 		nameExt,
-		filepath.Join(USER_SCRIPTROOT, name),
-		filepath.Join(USER_SCRIPTROOT, nameExt),
-		filepath.Join(SYSTEM_SCRIPTROOT, name),
-		filepath.Join(SYSTEM_SCRIPTROOT, nameExt),
+		filepath.Join(userScriptRoot, name),
+		filepath.Join(userScriptRoot, nameExt),
+		filepath.Join(systemScriptRoot, name),
+		filepath.Join(systemScriptRoot, nameExt),
 	}
 	for _, path := range list {
 		if st, err := os.Stat(path); err == nil {
@@ -326,25 +329,25 @@ func init() {
 		return ""
 	}
 
-	SYSTEM_SCRIPTROOT = pathlistSub(XDG_DATA_DIRS, filepath.Join(APPLICATION, "scripts"))
-	USER_SCRIPTROOT = pathlistSub(XDG_CONFIG_HOME, filepath.Join(APPLICATION, "scripts"))
+	systemScriptRoot = pathlistSub(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
+	userScriptRoot = pathlistSub(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
 
-	CONFIG = os.Getenv("DEMLORC")
-	if CONFIG == "" {
-		CONFIG = filepath.Join(XDG_CONFIG_HOME, APPLICATION, APPLICATION+"rc")
+	config = os.Getenv("DEMLORC")
+	if config == "" {
+		config = filepath.Join(XDG_CONFIG_HOME, application, application+"rc")
 	}
 }
 
 func main() {
 	// Load config first since it changes the default flag values.
-	st, err := os.Stat(CONFIG)
+	st, err := os.Stat(config)
 	if err == nil && st.Mode().IsRegular() {
-		fmt.Fprintf(os.Stderr, ":: Load config: %v\n", CONFIG)
-		OPTIONS = loadConfig(CONFIG)
+		fmt.Fprintf(os.Stderr, ":: Load config: %v\n", config)
+		options = loadConfig(config)
 	}
-	if OPTIONS.extensions == nil {
+	if options.extensions == nil {
 		// Defaults: Init here so that unspecified config options get properly set.
-		OPTIONS.extensions = stringSetFlag{
+		options.extensions = stringSetFlag{
 			"aac":  true,
 			"ape":  true,
 			"flac": true,
@@ -365,18 +368,18 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.BoolVar(&OPTIONS.color, "color", OPTIONS.color, "Color output.")
-	flag.IntVar(&OPTIONS.cores, "cores", OPTIONS.cores, "Run N processes in parallel. If 0, use all online cores.")
-	flag.BoolVar(&OPTIONS.debug, "debug", false, "Enable debug messages.")
-	flag.Var(&OPTIONS.extensions, "ext", "Additional extensions to look for when a folder is browsed.")
-	flag.BoolVar(&OPTIONS.getcover, "c", OPTIONS.getcover, "Fetch cover from the Internet.")
-	flag.BoolVar(&OPTIONS.gettags, "t", OPTIONS.gettags, "Fetch tags from the Internet.")
-	flag.StringVar(&OPTIONS.index, "i", OPTIONS.index, `Use index file to set input and output metadata.
+	flag.BoolVar(&options.color, "color", options.color, "Color output.")
+	flag.IntVar(&options.cores, "cores", options.cores, "Run N processes in parallel. If 0, use all online cores.")
+	flag.BoolVar(&options.debug, "debug", false, "Enable debug messages.")
+	flag.Var(&options.extensions, "ext", "Additional extensions to look for when a folder is browsed.")
+	flag.BoolVar(&options.getcover, "c", options.getcover, "Fetch cover from the Internet.")
+	flag.BoolVar(&options.gettags, "t", options.gettags, "Fetch tags from the Internet.")
+	flag.StringVar(&options.index, "i", options.index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
-	flag.StringVar(&OPTIONS.postscript, "post", OPTIONS.postscript, "Run Lua commands after the other scripts.")
-	flag.StringVar(&OPTIONS.prescript, "pre", OPTIONS.prescript, "Run Lua commands before the other scripts.")
-	flag.BoolVar(&OPTIONS.process, "p", OPTIONS.process, "Apply changes: set tags and format, move/copy result to destination file.")
-	flag.BoolVar(&OPTIONS.removesource, "rmsrc", OPTIONS.removesource, "Remove source file after processing.")
+	flag.StringVar(&options.postscript, "post", options.postscript, "Run Lua commands after the other scripts.")
+	flag.StringVar(&options.prescript, "pre", options.prescript, "Run Lua commands before the other scripts.")
+	flag.BoolVar(&options.process, "p", options.process, "Apply changes: set tags and format, move/copy result to destination file.")
+	flag.BoolVar(&options.removesource, "rmsrc", options.removesource, "Remove source file after processing.")
 	var flagScripts scriptSlice
 	flag.Var(&flagScripts, "s", `Specify scripts to run in provided order.
     	This option can be specified several times. If only the basename without extension is given,
@@ -387,7 +390,7 @@ func main() {
 	flag.Parse()
 
 	if *flagVersion {
-		fmt.Println(APPLICATION, VERSION, COPYRIGHT)
+		fmt.Println(application, version, copyright)
 		return
 	}
 
@@ -409,40 +412,40 @@ func main() {
 	// Disable formatted output if piped.
 	st, _ = os.Stdout.Stat()
 	if (st.Mode() & os.ModeCharDevice) == 0 {
-		PRINT_INDEX = true
+		previewOptions.printIndex = true
 	}
 	st, _ = os.Stderr.Stat()
 	if (st.Mode() & os.ModeCharDevice) == 0 {
-		OPTIONS.color = false
-		PRINT_GRAPHICAL = false
+		options.color = false
+		previewOptions.printDiff = false
 	}
 
 	info := log.New(os.Stderr, ":: ", 0)
 	warning := log.New(os.Stderr, ":: Warning: ", 0)
-	if OPTIONS.color {
+	if options.color {
 		info.SetPrefix(ansi.Color(info.Prefix(), "magenta+b"))
 		warning.SetPrefix(ansi.Color(warning.Prefix(), "blue+b"))
 	}
 
 	// Cache index.
-	if OPTIONS.index != "" {
-		st, err := os.Stat(OPTIONS.index)
+	if options.index != "" {
+		st, err := os.Stat(options.index)
 		if err != nil {
-			warning.Printf("Index not found: [%v]", OPTIONS.index)
+			warning.Printf("Index not found: [%v]", options.index)
 		} else {
-			if st.Size() > INDEX_MAXSIZE {
-				warning.Printf("Index size > %v bytes, skipping: %v", INDEX_MAXSIZE, OPTIONS.index)
+			if st.Size() > indexMaxsize {
+				warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.index)
 			} else {
-				buf, err := ioutil.ReadFile(OPTIONS.index)
+				buf, err := ioutil.ReadFile(options.index)
 				if err != nil {
 					warning.Print("Index is not readable:", err)
 				} else {
 					// Enclose JSON list in a valid structure. Since index ends with a
 					// comma, hence the required dummy entry.
 					buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
-					err = json.Unmarshal(buf, &CACHE.index)
+					err = json.Unmarshal(buf, &cache.index)
 					if err != nil {
-						warning.Printf("Invalid index %v: %v", OPTIONS.index, err)
+						warning.Printf("Invalid index %v: %v", options.index, err)
 					}
 				}
 			}
@@ -450,21 +453,21 @@ func main() {
 	}
 
 	// Cache scripts.
-	if OPTIONS.prescript != "" {
-		CACHE.scripts = append(CACHE.scripts, scriptBuffer{name: "prescript", buf: OPTIONS.prescript})
+	if options.prescript != "" {
+		cache.scripts = append(cache.scripts, scriptBuffer{name: "prescript", buf: options.prescript})
 	}
 	if len(flagScripts) > 0 {
 		// CLI overrides default/config values.
-		OPTIONS.scripts = flagScripts
+		options.scripts = flagScripts
 	}
-	for _, s := range OPTIONS.scripts {
+	for _, s := range options.scripts {
 		path, st, err := findScript(s)
 		if err != nil {
 			warning.Printf("%v: %v", err, s)
 			continue
 		}
-		if sz := st.Size(); sz > SCRIPT_MAXSIZE {
-			warning.Printf("Script size %v > %v bytes, skipping: %v", sz, SCRIPT_MAXSIZE, path)
+		if sz := st.Size(); sz > scriptMaxsize {
+			warning.Printf("Script size %v > %v bytes, skipping: %v", sz, scriptMaxsize, path)
 			continue
 		}
 		buf, err := ioutil.ReadFile(path)
@@ -473,27 +476,27 @@ func main() {
 			continue
 		}
 		info.Printf("Load script: %v", path)
-		CACHE.scripts = append(CACHE.scripts, scriptBuffer{name: path, buf: string(buf)})
+		cache.scripts = append(cache.scripts, scriptBuffer{name: path, buf: string(buf)})
 	}
-	if OPTIONS.postscript != "" {
-		CACHE.scripts = append(CACHE.scripts, scriptBuffer{name: "postscript", buf: OPTIONS.postscript})
+	if options.postscript != "" {
+		cache.scripts = append(cache.scripts, scriptBuffer{name: "postscript", buf: options.postscript})
 	}
 
 	// Limit number of cores to online cores.
-	if OPTIONS.cores > runtime.NumCPU() || OPTIONS.cores <= 0 {
-		OPTIONS.cores = runtime.NumCPU()
+	if options.cores > runtime.NumCPU() || options.cores <= 0 {
+		options.cores = runtime.NumCPU()
 	}
 
 	// Pipeline.
 	// Log should be able to hold all routines at once.
-	p := NewPipeline(1, 1+OPTIONS.cores+OPTIONS.cores)
+	p := NewPipeline(1, 1+options.cores+options.cores)
 
 	// TODO: Is there a more elegant way to pass a stage?
 	p.Add(func() Stage { return &walker{} }, 1)
-	p.Add(func() Stage { return &analyzer{} }, OPTIONS.cores)
+	p.Add(func() Stage { return &analyzer{} }, options.cores)
 
-	if OPTIONS.process {
-		p.Add(func() Stage { return &transformer{} }, OPTIONS.cores)
+	if options.process {
+		p.Add(func() Stage { return &transformer{} }, options.cores)
 	}
 
 	// Produce pipeline input. This should be done after initializing the output
@@ -504,7 +507,7 @@ func main() {
 				if err != nil || !info.Mode().IsRegular() {
 					return nil
 				}
-				p.input <- NewFileRecord(path)
+				p.input <- newFileRecord(path)
 				return nil
 			}
 			// 'visit' always keeps going, so no error.

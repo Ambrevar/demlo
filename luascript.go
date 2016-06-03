@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	REGISTRY_RESTORE_SANDBOX = "_restore_sandbox"
-	REGISTRY_SANDBOX         = "_sandbox"
-	REGISTRY_SCRIPTS         = "_scripts"
+	registryRestoreSandbox = "_restore_sandbox"
+	registrySandbox        = "_sandbox"
+	registryScripts        = "_scripts"
 )
 
-func lua_stringNorm(L *lua.State) int {
+func luaStringNorm(L *lua.State) int {
 	if !L.IsString(-1) {
 		L.PushString("")
 	} else {
@@ -34,7 +34,7 @@ func lua_stringNorm(L *lua.State) int {
 	return 1
 }
 
-func lua_stringRel(L *lua.State) int {
+func luaStringRel(L *lua.State) int {
 	if !L.IsString(-2) || !L.IsString(-1) {
 		L.PushNumber(0.0)
 	} else {
@@ -70,7 +70,7 @@ func setArray(L *lua.State, key int, value interface{}) {
 	L.SetTable(-3)
 }
 
-func lua2go_outCover(L *lua.State) outputCover {
+func lua2goOutCover(L *lua.State) outputCover {
 	var out outputCover
 
 	L.GetField(-1, "path")
@@ -114,11 +114,11 @@ func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, err
 	// Register before defining the sandbox: these functions will be restored
 	// together with the sandbox.
 	// The closure allows access to the script logger.
-	lua_debug := func(L *lua.State) int {
+	luaDebug := func(L *lua.State) int {
 		return 0
 	}
-	if OPTIONS.debug {
-		lua_debug = func(L *lua.State) int {
+	if options.debug {
+		luaDebug = func(L *lua.State) int {
 			var arglist []interface{}
 			nargs := L.GetTop()
 			for i := 1; i <= nargs; i++ {
@@ -130,9 +130,9 @@ func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, err
 			return 0
 		}
 	}
-	L.Register("debug", lua_debug)
-	L.Register("stringnorm", lua_stringNorm)
-	L.Register("stringrel", lua_stringRel)
+	L.Register("debug", luaDebug)
+	L.Register("stringnorm", luaStringNorm)
+	L.Register("stringrel", luaStringRel)
 
 	unicode.GoLuaReplaceFuncs(L)
 
@@ -143,20 +143,20 @@ func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, err
 	}
 
 	// Store the sandbox in registry and remove it from _G to avoid tampering it.
-	L.PushString(REGISTRY_SANDBOX)
+	L.PushString(registrySandbox)
 	L.GetGlobal("_sandbox")
 	L.SetTable(lua.LUA_REGISTRYINDEX)
 	L.PushNil()
 	L.SetGlobal("_sandbox")
 
-	L.PushString(REGISTRY_RESTORE_SANDBOX)
+	L.PushString(registryRestoreSandbox)
 	L.GetGlobal("_restore_sandbox")
 	L.SetTable(lua.LUA_REGISTRYINDEX)
 	L.PushNil()
 	L.SetGlobal("_restore_sandbox")
 
 	// Compile scripts.
-	L.PushString(REGISTRY_SCRIPTS)
+	L.PushString(registryScripts)
 	L.NewTable()
 	for _, script := range scripts {
 		L.PushString(script.name)
@@ -224,9 +224,9 @@ func makeSandboxInput(L *lua.State, input *inputInfo) {
 	for index, v := range input.Streams {
 		L.PushInteger(int64(index + 1))
 		L.NewTable()
-		setMap(L, "bit_rate", v.Bit_rate)
-		setMap(L, "codec_name", v.Codec_name)
-		setMap(L, "codec_type", v.Codec_type)
+		setMap(L, "bit_rate", v.Bitrate)
+		setMap(L, "codec_name", v.CodecName)
+		setMap(L, "codec_type", v.CodecType)
 		setMap(L, "duration", v.Duration)
 		setMap(L, "height", v.Height)
 		setMap(L, "width", v.Width)
@@ -243,10 +243,10 @@ func makeSandboxInput(L *lua.State, input *inputInfo) {
 
 	// Format.
 	L.NewTable()
-	setMap(L, "bit_rate", input.Format.Bit_rate)
+	setMap(L, "bit_rate", input.Format.Bitrate)
 	setMap(L, "duration", input.Format.Duration)
-	setMap(L, "format_name", input.Format.Format_name)
-	setMap(L, "nb_streams", input.Format.Nb_streams)
+	setMap(L, "format_name", input.Format.FormatName)
+	setMap(L, "nb_streams", input.Format.NbStreams)
 	L.NewTable()
 	for k, v := range input.Format.Tags {
 		setMap(L, k, v)
@@ -371,9 +371,9 @@ func sanitizeOutput(L *lua.State) {
 
 func runScript(L *lua.State, script string, input *inputInfo) error {
 	// Restore the sandbox.
-	L.PushString(REGISTRY_RESTORE_SANDBOX)
+	L.PushString(registryRestoreSandbox)
 	L.GetTable(lua.LUA_REGISTRYINDEX)
-	L.PushString(REGISTRY_SANDBOX)
+	L.PushString(registrySandbox)
 	L.GetTable(lua.LUA_REGISTRYINDEX)
 	err := L.Call(1, 0)
 	if err != nil {
@@ -384,7 +384,7 @@ func runScript(L *lua.State, script string, input *inputInfo) error {
 	sanitizeOutput(L)
 
 	// Call the compiled script.
-	L.PushString(REGISTRY_SCRIPTS)
+	L.PushString(registryScripts)
 	L.GetTable(lua.LUA_REGISTRYINDEX)
 	L.PushString(script)
 	if L.IsTable(-2) {
@@ -445,7 +445,6 @@ func scriptOutput(L *lua.State) outputInfo {
 
 	L.GetField(-1, "parameters")
 	if L.IsTable(-1) {
-
 		for i := 1; ; i++ {
 			L.PushInteger(int64(i))
 			L.GetTable(-2)
@@ -468,7 +467,7 @@ func scriptOutput(L *lua.State) outputInfo {
 		for L.Next(-2) != 0 {
 			// Use 'key' (at index -2) and 'value' (at index -1).
 			if L.IsString(-2) && L.IsTable(-1) {
-				output.ExternalCovers[L.ToString(-2)] = lua2go_outCover(L)
+				output.ExternalCovers[L.ToString(-2)] = lua2goOutCover(L)
 			}
 			// Remove 'value' and keep 'key' for next iteration.
 			L.Pop(1)
@@ -485,7 +484,7 @@ func scriptOutput(L *lua.State) outputInfo {
 				L.Pop(1)
 				break
 			}
-			output.EmbeddedCovers = append(output.EmbeddedCovers, lua2go_outCover(L))
+			output.EmbeddedCovers = append(output.EmbeddedCovers, lua2goOutCover(L))
 			L.Pop(1)
 		}
 	}
@@ -493,7 +492,7 @@ func scriptOutput(L *lua.State) outputInfo {
 
 	L.GetField(-1, "onlinecover")
 	if L.IsTable(-1) {
-		output.OnlineCover = lua2go_outCover(L)
+		output.OnlineCover = lua2goOutCover(L)
 	}
 	L.Pop(1)
 
@@ -503,13 +502,13 @@ func scriptOutput(L *lua.State) outputInfo {
 	return output
 }
 
-func loadConfig(config string) options {
+func loadConfig(config string) optionSet {
 	L := lua.NewState()
 	defer L.Close()
 	L.OpenLibs()
 
 	// Register before defining the sandbox.
-	lua_debug := func(L *lua.State) int {
+	luaDebug := func(L *lua.State) int {
 		var arglist []interface{}
 		nargs := L.GetTop()
 		for i := 1; i <= nargs; i++ {
@@ -520,9 +519,9 @@ func loadConfig(config string) options {
 		fmt.Fprintln(os.Stderr, arglist...)
 		return 0
 	}
-	L.Register("debug", lua_debug)
-	L.Register("stringnorm", lua_stringNorm)
-	L.Register("stringrel", lua_stringRel)
+	L.Register("debug", luaDebug)
+	L.Register("stringnorm", luaStringNorm)
+	L.Register("stringrel", luaStringRel)
 
 	unicode.GoLuaReplaceFuncs(L)
 
@@ -546,19 +545,19 @@ func loadConfig(config string) options {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	options := options{}
+	o := optionSet{}
 
 	L.GetGlobal("color")
-	options.color = L.ToBoolean(-1)
+	o.color = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("cores")
-	options.cores = L.ToInteger(-1)
+	o.cores = L.ToInteger(-1)
 	L.Pop(1)
 
 	L.GetGlobal("extensions")
 	if L.IsTable(-1) {
-		options.extensions = stringSetFlag{}
+		o.extensions = stringSetFlag{}
 		for i := 1; ; i++ {
 			L.PushInteger(int64(i))
 			L.GetTable(-2)
@@ -566,38 +565,38 @@ func loadConfig(config string) options {
 				L.Pop(1)
 				break
 			}
-			options.extensions[L.ToString(-1)] = true
+			o.extensions[L.ToString(-1)] = true
 			L.Pop(1)
 		}
 	}
 	L.Pop(1)
 
 	L.GetGlobal("getcover")
-	options.getcover = L.ToBoolean(-1)
+	o.getcover = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("gettags")
-	options.gettags = L.ToBoolean(-1)
+	o.gettags = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("overwrite")
-	options.overwrite = L.ToBoolean(-1)
+	o.overwrite = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("prescript")
-	options.prescript = L.ToString(-1)
+	o.prescript = L.ToString(-1)
 	L.Pop(1)
 
 	L.GetGlobal("postscript")
-	options.postscript = L.ToString(-1)
+	o.postscript = L.ToString(-1)
 	L.Pop(1)
 
 	L.GetGlobal("process")
-	options.process = L.ToBoolean(-1)
+	o.process = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("removesource")
-	options.removesource = L.ToBoolean(-1)
+	o.removesource = L.ToBoolean(-1)
 	L.Pop(1)
 
 	L.GetGlobal("scripts")
@@ -609,11 +608,11 @@ func loadConfig(config string) options {
 				L.Pop(1)
 				break
 			}
-			options.scripts = append(options.scripts, L.ToString(-1))
+			o.scripts = append(o.scripts, L.ToString(-1))
 			L.Pop(1)
 		}
 	}
 	L.Pop(1)
 
-	return options
+	return o
 }

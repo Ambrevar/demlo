@@ -50,19 +50,19 @@ import (
 )
 
 const (
-	ACOUSTID_APIKEY = "iOiEFv7y"
+	acoustIDAPIKey = "iOiEFv7y"
 	// Threshold above which a key is considered a match for the cache.
-	RELATION_THRESHOLD = 0.7
+	relationThreshold = 0.7
 )
 
 var (
 	// gomusicbrainz recreates an HTTP transport stream on every connection, thus
 	// inhibiting the benefit of keep-alive connections. TODO: report upstream.
-	MUSICBRAINZ_CLIENT *gomusicbrainz.WS2Client
+	musicBrainzClient *gomusicbrainz.WS2Client
 
-	RE_COVER     = regexp.MustCompile(`<div class="cover-art"><img src="([^"]+)"`)
-	RE_DATE2YEAR = regexp.MustCompile(`\d\d\d\d+`)
-	RE_TRACK     = regexp.MustCompile(`\d+`)
+	reCover = regexp.MustCompile(`<div class="cover-art"><img src="([^"]+)"`)
+	reYear  = regexp.MustCompile(`\d\d\d\d+`)
+	reTrack = regexp.MustCompile(`\d+`)
 
 	// Map tags to releaseID for future files. This spares some acoustID queries. We
 	// index releaseIDs by {album, albumartist, year} to avoid confusion on albums
@@ -71,21 +71,21 @@ var (
 
 	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
 	// the same AlbumKey but refer to a different album?
-	RELEASE_INDEX = struct {
+	releaseIndex = struct {
 		v map[AlbumKey]ReleaseID
 		sync.RWMutex
 	}{v: map[AlbumKey]ReleaseID{}}
-	TAGS_CACHE = struct {
+	tagsCache = struct {
 		v map[ReleaseID]Tags
 		sync.RWMutex
 	}{v: map[ReleaseID]Tags{}}
-	COVER_CACHE = struct {
+	coverCache = struct {
 		v map[ReleaseID]Cover
 		sync.RWMutex
 	}{v: map[ReleaseID]Cover{}}
 
-	ErrMissingCover = errors.New("cover not found")
-	ErrUnidentAlbum = errors.New("unidentifiable album")
+	errMissingCover = errors.New("cover not found")
+	errUnidentAlbum = errors.New("unidentifiable album")
 )
 
 // RecordingID is the MusicBrainz ID of a specific track. Different remixes have
@@ -127,7 +127,7 @@ type Cover struct {
 }
 
 func init() {
-	MUSICBRAINZ_CLIENT, _ = gomusicbrainz.NewWS2Client("https://musicbrainz.org/ws/2", APPLICATION, VERSION, URL)
+	musicBrainzClient, _ = gomusicbrainz.NewWS2Client("https://musicbrainz.org/ws/2", application, version, URL)
 }
 
 // MusicBrainz returns 2 artist names per recording. They are stored in the NameCredit struct:
@@ -139,7 +139,7 @@ func init() {
 // 'Artist' links to the official artist name.
 // As of 2015/12/06, gomusicbrainz does not implement 'name'. TODO: Report upstream? The official name is better anyways.
 func queryMusicBrainz(releaseID ReleaseID) (Tags, error) {
-	mbRelease, err := MUSICBRAINZ_CLIENT.LookupRelease(gomusicbrainz.MBID(releaseID), "recordings", "artist-credits")
+	mbRelease, err := musicBrainzClient.LookupRelease(gomusicbrainz.MBID(releaseID), "recordings", "artist-credits")
 	if err != nil {
 		return Tags{}, errors.New("MusicBrainz: " + err.Error())
 	}
@@ -198,8 +198,8 @@ func queryAcoustID(fr *FileRecord, meta acoustid.Meta, duration int) (recordingI
 	album := stringNorm(tags["album"])
 	title := stringNorm(tags["title"])
 	artist := stringNorm(tags["artist"])
-	date := RE_DATE2YEAR.FindString(tags["date"])
-	track, err := strconv.Atoi(RE_TRACK.FindString(tags["track"]))
+	date := reYear.FindString(tags["date"])
+	track, err := strconv.Atoi(reTrack.FindString(tags["track"]))
 	if err != nil {
 		track = 0
 	}
@@ -353,7 +353,7 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 			return Cover{}, err
 		}
 		if resp.StatusCode != 200 {
-			return Cover{}, ErrMissingCover
+			return Cover{}, errMissingCover
 		}
 		buf, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -364,9 +364,9 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 		// TODO: HTML parsing with regexps is fragile. Sadly, the HTML tokenizer is
 		// not part of the standard library. The choice lies between the cost of
 		// another dependency and a simple regexp.
-		matches := RE_COVER.FindSubmatch(buf)
+		matches := reCover.FindSubmatch(buf)
 		if matches == nil {
-			return Cover{}, ErrMissingCover
+			return Cover{}, errMissingCover
 		}
 		uri := string(matches[1])
 
@@ -377,7 +377,7 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			return Cover{}, ErrMissingCover
+			return Cover{}, errMissingCover
 		}
 	}
 
@@ -395,8 +395,8 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 	}
 
 	hi := len(cover.picture)
-	if hi > COVER_CHECKSUM_BLOCK {
-		hi = COVER_CHECKSUM_BLOCK
+	if hi > coverChecksumBlock {
+		hi = coverChecksumBlock
 	}
 	checksum := fmt.Sprintf("%x", md5.Sum(cover.picture[:hi]))
 
@@ -427,32 +427,32 @@ func queryIndex(input *inputInfo) (ReleaseID, AlbumKey) {
 	relMax := 0.0
 	var matchKey AlbumKey
 
-	RELEASE_INDEX.RLock()
-	for key := range RELEASE_INDEX.v {
+	releaseIndex.RLock()
+	for key := range releaseIndex.v {
 		rel := stringRel(albumKey.album, key.album)
-		if rel >= RELATION_THRESHOLD {
+		if rel >= relationThreshold {
 			albumMatches = append(albumMatches, key)
 		}
 	}
-	RELEASE_INDEX.RUnlock()
+	releaseIndex.RUnlock()
 
 	for _, key := range albumMatches {
 		rel := stringRel(albumKey.albumartist, key.albumartist)
-		if rel >= RELATION_THRESHOLD {
+		if rel >= relationThreshold {
 			albumArtistMatches = append(albumArtistMatches, key)
 		}
 	}
 	for _, key := range albumArtistMatches {
 		rel := stringRel(albumKey.date, key.date)
-		if rel >= RELATION_THRESHOLD && rel > relMax {
+		if rel >= relationThreshold && rel > relMax {
 			relMax = rel
 			matchKey = key
 		}
 	}
 
-	RELEASE_INDEX.RLock()
-	var releaseID = RELEASE_INDEX.v[matchKey]
-	RELEASE_INDEX.RUnlock()
+	releaseIndex.RLock()
+	var releaseID = releaseIndex.v[matchKey]
+	releaseIndex.RUnlock()
 
 	return releaseID, albumKey
 }
@@ -465,9 +465,9 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 	releaseID, albumKey := queryIndex(input)
 	fr.Debug.Printf("Album cache Key: %q\n", albumKey)
 
-	TAGS_CACHE.RLock()
-	tags, ok := TAGS_CACHE.v[releaseID]
-	TAGS_CACHE.RUnlock()
+	tagsCache.RLock()
+	tags, ok := tagsCache.v[releaseID]
+	tagsCache.RUnlock()
 	if !ok {
 		// Not cached.
 
@@ -475,9 +475,9 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		// fails, the entry will be zero, thus allowing to spot dummy entries and
 		// avoid querying it again.
 		defer func() {
-			TAGS_CACHE.Lock()
-			TAGS_CACHE.v[releaseID] = tags
-			TAGS_CACHE.Unlock()
+			tagsCache.Lock()
+			tagsCache.v[releaseID] = tags
+			tagsCache.Unlock()
 		}()
 
 		fingerprint, duration, err := fingerprint(input.path)
@@ -485,7 +485,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 			return "", nil, err
 		}
 
-		meta, err := acoustid.Get(ACOUSTID_APIKEY, fingerprint, duration)
+		meta, err := acoustid.Get(acoustIDAPIKey, fingerprint, duration)
 		if err != nil {
 			return "", nil, err
 		}
@@ -496,9 +496,9 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		}
 
 		// Add releaseID to cache.
-		RELEASE_INDEX.Lock()
-		RELEASE_INDEX.v[albumKey] = releaseID
-		RELEASE_INDEX.Unlock()
+		releaseIndex.Lock()
+		releaseIndex.v[albumKey] = releaseID
+		releaseIndex.Unlock()
 
 		// We use releaseID to identify albums: it is more reliable than the album
 		// name in tags.
@@ -541,7 +541,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		track := stringNorm(input.tags["track"])
 		if track == "" {
 			// If there is no 'track' tag, use the first number in the file name.
-			track = RE_TRACK.FindString(filepath.Base(input.path))
+			track = reTrack.FindString(filepath.Base(input.path))
 		}
 
 		for k, v := range tags.recordings {
@@ -603,16 +603,16 @@ func getOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc i
 		releaseID, albumKey = queryIndex(input)
 	}
 
-	COVER_CACHE.RLock()
-	cover, ok := COVER_CACHE.v[releaseID]
-	COVER_CACHE.RUnlock()
+	coverCache.RLock()
+	cover, ok := coverCache.v[releaseID]
+	coverCache.RUnlock()
 	if !ok {
 		// Not cached.
 
 		defer func() {
-			COVER_CACHE.Lock()
-			COVER_CACHE.v[releaseID] = cover
-			COVER_CACHE.Unlock()
+			coverCache.Lock()
+			coverCache.v[releaseID] = cover
+			coverCache.Unlock()
 		}()
 
 		// The releaseID can be known from other caches (tagsCache) while not
@@ -623,7 +623,7 @@ func getOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc i
 			if err != nil {
 				return nil, inputCover{}, err
 			}
-			meta, err := acoustid.Get(ACOUSTID_APIKEY, fingerprint, duration)
+			meta, err := acoustid.Get(acoustIDAPIKey, fingerprint, duration)
 			if err != nil {
 				return nil, inputCover{}, err
 			}
@@ -635,9 +635,9 @@ func getOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc i
 		}
 
 		// Add releaseID to cache.
-		RELEASE_INDEX.Lock()
-		RELEASE_INDEX.v[albumKey] = releaseID
-		RELEASE_INDEX.Unlock()
+		releaseIndex.Lock()
+		releaseIndex.v[albumKey] = releaseID
+		releaseIndex.Unlock()
 
 		cover, err = queryCover(releaseID)
 		if err != nil {
@@ -648,7 +648,7 @@ func getOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc i
 	if len(cover.picture) == 0 {
 		// Dummy entry: The entry that was found was a previously unidentifiable
 		// album.
-		return nil, inputCover{}, ErrUnidentAlbum
+		return nil, inputCover{}, errUnidentAlbum
 	}
 
 	return cover.picture, cover.desc, nil

@@ -15,11 +15,9 @@ type Stage interface {
 	Close()
 }
 
-// The pipeline processes FileRecords through a sequence of stages. A FileRecord
+// Pipeline processes FileRecords through a sequence of stages. A FileRecord
 // is forwarded to the 'log' channel when a stage returns an error, or to the
 // 'output' channel otherwise.
-//
-// 'input' never changes, 'output' gets forwarded on every call to 'Add'.
 //
 // The advantage of a pipeline design:
 // - Ensures log messages grouped by FileRecord and does not require manual log flushing.
@@ -32,6 +30,8 @@ type Pipeline struct {
 	logWg  sync.WaitGroup
 }
 
+// NewPipeline initializes a pipeline with an input queue and a log queue.
+// The pipeline waits until its input channel is fed.
 func NewPipeline(inputQueueSize, logQueueSize int) *Pipeline {
 	var p Pipeline
 	p.input = make(chan *FileRecord, inputQueueSize)
@@ -50,7 +50,16 @@ func NewPipeline(inputQueueSize, logQueueSize int) *Pipeline {
 	return &p
 }
 
+// Add appends a new stage to the pipeline.
+// The pipeline 'input' does not change, but its 'output' gets forwarded to the
+// new stage. The stage can be parallelized 'routineCount' times. 'routineCount'
+// must be >0. 'NewStage' initializes a stage structure for each goroutine. It
+// allows for data separation between goroutines and keeps the Stage interface
+// implicit.
 func (p *Pipeline) Add(NewStage func() Stage, routineCount int) {
+	if routineCount <= 0 {
+		return
+	}
 	var wg sync.WaitGroup
 
 	// The output queue is the size of the number of producing goroutines. It

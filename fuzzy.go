@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	RE_NORM = regexp.MustCompile(`\b0+|[^\pL\pN]`)
+	reNorm = regexp.MustCompile(`\b0+|[^\pL\pN]`)
 )
 
 // Remove punctuation and padding zeros for number comparisons. Return the
 // result in lowercase. This is useful to make string relations more relevant.
 func stringNorm(s string) string {
-	return strings.ToLower(RE_NORM.ReplaceAllString(s, ""))
+	return strings.ToLower(reNorm.ReplaceAllString(s, ""))
 }
 
 // Return the Damerau-Levenshtein distance divided by the length of the longest

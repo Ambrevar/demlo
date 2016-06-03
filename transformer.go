@@ -65,7 +65,7 @@ func (t *transformer) Run(fr *FileRecord) error {
 			encodingChanged = true
 		}
 
-		if input.Format.Format_name != output.Format {
+		if input.Format.FormatName != output.Format {
 			encodingChanged = true
 		}
 
@@ -94,14 +94,14 @@ func (t *transformer) Run(fr *FileRecord) error {
 		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
 		if encodingChanged {
 			return saveTranscode(fr, track)
-		} else {
-			return saveKeepStream(fr, track, tagsChanged)
 		}
+		return saveKeepStream(fr, track, tagsChanged)
 	}
 
 	return nil
 }
 
+// TODO: rename save* functions.
 func saveTranscode(fr *FileRecord, track int) error {
 	input := &fr.input
 	output := &fr.output[track]
@@ -111,7 +111,7 @@ func saveTranscode(fr *FileRecord, track int) error {
 
 	// Be verbose only when running a single process. Otherwise output gets
 	// would get messy.
-	if OPTIONS.cores > 1 {
+	if options.cores > 1 {
 		ffmpegParameters = append(ffmpegParameters, "-v", "warning")
 	} else {
 		ffmpegParameters = append(ffmpegParameters, "-v", "error")
@@ -133,22 +133,22 @@ func saveTranscode(fr *FileRecord, track int) error {
 	// Get cuesheet splitting parameters.
 	if len(input.cuesheet.Files) > 0 {
 		d, _ := strconv.ParseFloat(input.Streams[input.audioIndex].Duration, 64)
-		start, duration := FFmpegSplitTimes(input.cuesheet, input.cuesheetFile, track, d)
+		start, duration := ffmpegSplitTimes(input.cuesheet, input.cuesheetFile, track, d)
 		ffmpegParameters = append(ffmpegParameters, "-ss", start, "-t", duration)
 	}
 
 	// If there are no covers, do not copy any video stream to avoid errors.
-	if input.Format.Nb_streams < 2 {
+	if input.Format.NbStreams < 2 {
 		ffmpegParameters = append(ffmpegParameters, "-vn")
 	}
 
 	// Remove non-cover streams and extra audio streams.
 	// Must add all streams first.
 	ffmpegParameters = append(ffmpegParameters, "-map", "0")
-	for i := 0; i < input.Format.Nb_streams; i++ {
-		if (input.Streams[i].Codec_type == "video" && input.Streams[i].Codec_name != "image2" && input.Streams[i].Codec_name != "png" && input.Streams[i].Codec_name != "mjpeg") ||
-			(input.Streams[i].Codec_type == "audio" && i > input.audioIndex) ||
-			(input.Streams[i].Codec_type != "audio" && input.Streams[i].Codec_type != "video") {
+	for i := 0; i < input.Format.NbStreams; i++ {
+		if (input.Streams[i].CodecType == "video" && input.Streams[i].CodecName != "image2" && input.Streams[i].CodecName != "png" && input.Streams[i].CodecName != "mjpeg") ||
+			(input.Streams[i].CodecType == "audio" && i > input.audioIndex) ||
+			(input.Streams[i].CodecType != "audio" && input.Streams[i].CodecType != "video") {
 			ffmpegParameters = append(ffmpegParameters, "-map", "-0:"+strconv.Itoa(i))
 		}
 	}
@@ -188,7 +188,7 @@ func saveTranscode(fr *FileRecord, track int) error {
 		return err
 	}
 
-	if OPTIONS.removesource {
+	if options.removesource {
 		if err != nil {
 			fr.Error.Print(err)
 			return err
@@ -213,7 +213,7 @@ func saveKeepStream(fr *FileRecord, track int, tagsChanged bool) error {
 	input := &fr.input
 	output := &fr.output[track]
 
-	dst, isInplace, err := makeTrackDst(output.Path, input.path, OPTIONS.removesource)
+	dst, isInplace, err := makeTrackDst(output.Path, input.path, options.removesource)
 	if err != nil {
 		fr.Error.Print(err)
 		return err
@@ -221,10 +221,10 @@ func saveKeepStream(fr *FileRecord, track int, tagsChanged bool) error {
 
 	if !isInplace {
 		err = nil
-		if OPTIONS.removesource {
+		if options.removesource {
 			err = os.Rename(input.path, dst)
 		}
-		if err != nil || !OPTIONS.removesource {
+		if err != nil || !options.removesource {
 			// If renaming failed, it might be because of a cross-device
 			// destination. We try to copy instead.
 			err := CopyFile(dst, input.path)
@@ -232,7 +232,7 @@ func saveKeepStream(fr *FileRecord, track int, tagsChanged bool) error {
 				fr.Error.Println(err)
 				return err
 			}
-			if OPTIONS.removesource {
+			if options.removesource {
 				err = os.Remove(input.path)
 				if err != nil {
 					fr.Error.Println(err)
@@ -343,7 +343,7 @@ func makeTrackDst(outputPath string, inputPath string, removeSource bool) (dst s
 
 // Create a new destination file 'dst'. See makeTrackDst.
 // As a special case, if the checksums match in input and dst, return "", nil.
-// TODO: Test how memoization scales with VISITED_DST_COVERS.
+// TODO: Test how memoization scales with visitedDstCovers.
 func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string) (string, error) {
 	if st, err := os.Stat(dst); err == nil || !os.IsNotExist(err) {
 		// 'dst' exists.
@@ -354,15 +354,15 @@ func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string)
 			return "", err
 		}
 
-		VISITED_DST_COVERS.RLock()
-		visited := VISITED_DST_COVERS.v[dstCoverKey{path: dst, checksum: checksum}]
-		VISITED_DST_COVERS.RUnlock()
+		visitedDstCovers.RLock()
+		visited := visitedDstCovers.v[dstCoverKey{path: dst, checksum: checksum}]
+		visitedDstCovers.RUnlock()
 		if visited {
 			return "", nil
 		}
-		VISITED_DST_COVERS.Lock()
-		VISITED_DST_COVERS.v[dstCoverKey{path: dst, checksum: checksum}] = true
-		VISITED_DST_COVERS.Unlock()
+		visitedDstCovers.Lock()
+		visitedDstCovers.v[dstCoverKey{path: dst, checksum: checksum}] = true
+		visitedDstCovers.Unlock()
 
 		// Compute checksum of existing cover and early-out if equal.
 		fd, err := os.Open(dst)
@@ -373,11 +373,11 @@ func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string)
 
 		// TODO: Cache checksums.
 		hi := st.Size()
-		if hi > COVER_CHECKSUM_BLOCK {
-			hi = COVER_CHECKSUM_BLOCK
+		if hi > coverChecksumBlock {
+			hi = coverChecksumBlock
 		}
 
-		buf := [COVER_CHECKSUM_BLOCK]byte{}
+		buf := [coverChecksumBlock]byte{}
 		_, err = (*fd).ReadAt(buf[:hi], 0)
 		if err != nil && err != io.EOF {
 			return "", err
@@ -416,9 +416,9 @@ func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string)
 		if err != nil {
 			return "", err
 		}
-		VISITED_DST_COVERS.Lock()
-		VISITED_DST_COVERS.v[dstCoverKey{path: dst, checksum: checksum}] = true
-		VISITED_DST_COVERS.Unlock()
+		visitedDstCovers.Lock()
+		visitedDstCovers.v[dstCoverKey{path: dst, checksum: checksum}] = true
+		visitedDstCovers.Unlock()
 	}
 
 	return dst, nil

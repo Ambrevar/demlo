@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	SAMPLE_CUESHEET    = "cuesheet/testdata/sample.cue"
-	SCRIPT_CASE        = "scripts/case.lua"
-	SCRIPT_PUNCTUATION = "scripts/punctuation.lua"
+	sampleCuesheet    = "cuesheet/testdata/sample.cue"
+	scriptCase        = "scripts/case.lua"
+	scriptPunctuation = "scripts/punctuation.lua"
 )
 
 var dummy log.Logger
@@ -33,7 +33,7 @@ func TestFixPunctuation(t *testing.T) {
 		},
 	}
 
-	buf, err := ioutil.ReadFile(SCRIPT_PUNCTUATION)
+	buf, err := ioutil.ReadFile(scriptPunctuation)
 	if err != nil {
 		t.Fatal("Script is not readable", err)
 	}
@@ -83,7 +83,7 @@ func TestTitleCase(t *testing.T) {
 		},
 	}
 
-	buf, err := ioutil.ReadFile(SCRIPT_CASE)
+	buf, err := ioutil.ReadFile(scriptCase)
 	if err != nil {
 		t.Fatal("Script is not readable", err)
 	}
@@ -123,7 +123,7 @@ func TestSentenceCase(t *testing.T) {
 		},
 	}
 
-	buf, err := ioutil.ReadFile(SCRIPT_CASE)
+	buf, err := ioutil.ReadFile(scriptCase)
 	if err != nil {
 		t.Fatal("Script is not readable", err)
 	}
@@ -221,7 +221,7 @@ func TestFFmpegSplitTimes(t *testing.T) {
 		{track: 8, start: "", duration: ""},
 	}
 
-	buf, err := ioutil.ReadFile(SAMPLE_CUESHEET)
+	buf, err := ioutil.ReadFile(sampleCuesheet)
 	if err != nil {
 		panic(err)
 	}
@@ -231,7 +231,7 @@ func TestFFmpegSplitTimes(t *testing.T) {
 	}
 
 	for _, v := range want {
-		start, duration := FFmpegSplitTimes(sheet, "Faithless - Live in Berlin (CD1).mp3", v.track, totaltime)
+		start, duration := ffmpegSplitTimes(sheet, "Faithless - Live in Berlin (CD1).mp3", v.track, totaltime)
 		if start != v.start || duration != v.duration {
 			t.Errorf("Got {start: %v, duration: %v}, want {start: %v, duration: %v}", start, duration, v.start, v.duration)
 		}
