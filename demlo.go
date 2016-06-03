@@ -434,22 +434,17 @@ func main() {
 		st, err := os.Stat(options.index)
 		if err != nil {
 			warning.Printf("Index not found: [%v]", options.index)
+		} else if st.Size() > indexMaxsize {
+			warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.index)
+		} else if buf, err := ioutil.ReadFile(options.index); err != nil {
+			warning.Print("Index is not readable:", err)
 		} else {
-			if st.Size() > indexMaxsize {
-				warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.index)
-			} else {
-				buf, err := ioutil.ReadFile(options.index)
-				if err != nil {
-					warning.Print("Index is not readable:", err)
-				} else {
-					// Enclose JSON list in a valid structure. Since index ends with a
-					// comma, hence the required dummy entry.
-					buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
-					err = json.Unmarshal(buf, &cache.index)
-					if err != nil {
-						warning.Printf("Invalid index %v: %v", options.index, err)
-					}
-				}
+			// Enclose JSON list in a valid structure: index ends with a
+			// comma, hence the required dummy entry.
+			buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
+			err = json.Unmarshal(buf, &cache.index)
+			if err != nil {
+				warning.Printf("Invalid index %v: %v", options.index, err)
 			}
 		}
 	}
