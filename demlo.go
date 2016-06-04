@@ -42,7 +42,7 @@ const (
 	URL         = "http://ambrevar.bitbucket.org/demlo"
 )
 
-var version = "tip"
+var version = "<tip>"
 
 const usage = `Batch-transcode files with user-written scripts for dynamic tagging
 and encoding.
