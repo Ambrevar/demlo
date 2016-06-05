@@ -484,6 +484,15 @@ func main() {
 		warning.SetPrefix(ansi.Color(warning.Prefix(), "yellow+b"))
 	}
 
+	{
+		extlist := make([]string, 0, len(options.extensions))
+		for k := range options.extensions {
+			extlist = append(extlist, k)
+		}
+		sort.StringSlice(extlist).Sort()
+		log.Printf("Register extensions: %v", strings.Join(extlist, " "))
+	}
+
 	// Cache index.
 	if options.index != "" {
 		st, err := os.Stat(options.index)
