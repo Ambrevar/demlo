@@ -361,6 +361,31 @@ func printExtensions() {
 	log.Printf("Register extensions: %v", strings.Join(extlist, " "))
 }
 
+func printScripts() {
+	f := func(name, folder string) {
+		log.Printf("%v script folder: %v", name, folder)
+		f, err := os.Open(folder)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				warning.Print(err)
+			}
+			return
+		}
+		defer f.Close()
+
+		dn, err := f.Readdirnames(0)
+		if err != nil {
+			warning.Print(err)
+			return
+		}
+		sort.StringSlice(dn).Sort()
+		log.Printf("%v scripts: %q", name, dn)
+	}
+
+	f("System", systemScriptRoot)
+	f("User", userScriptRoot)
+}
+
 func cacheScripts() {
 	visited := map[string]bool{}
 	for _, s := range options.scripts {
@@ -553,9 +578,8 @@ func main() {
 	}
 
 	printExtensions()
-
+	printScripts()
 	cacheScripts()
-
 	cacheIndex()
 
 	// Limit number of cores to online cores.
