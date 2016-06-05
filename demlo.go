@@ -319,7 +319,7 @@ func newFileRecord(path string) *FileRecord {
 		fr.Debug.SetPrefix(ansi.Color(fr.Debug.Prefix(), "cyan+b"))
 		fr.Info.SetPrefix(ansi.Color(fr.Info.Prefix(), "magenta+b"))
 		fr.Section.SetPrefix(ansi.Color(fr.Section.Prefix(), "green+b"))
-		fr.Warning.SetPrefix(ansi.Color(fr.Warning.Prefix(), "blue+b"))
+		fr.Warning.SetPrefix(ansi.Color(fr.Warning.Prefix(), "yellow+b"))
 		fr.Error.SetPrefix(ansi.Color(fr.Error.Prefix(), "red+b"))
 	}
 
@@ -354,6 +354,7 @@ func findScript(name string) (path string, st os.FileInfo, err error) {
 // filesystem.
 func init() {
 	log.SetFlags(0)
+	log.SetPrefix(":: ")
 
 	if XDG_CONFIG_HOME == "" {
 		XDG_CONFIG_HOME = filepath.Join(os.Getenv("HOME"), ".config")
@@ -390,7 +391,7 @@ func main() {
 	// Load config first since it changes the default flag values.
 	st, err := os.Stat(config)
 	if err == nil && st.Mode().IsRegular() {
-		fmt.Fprintf(os.Stderr, ":: Load config: %v\n", config)
+		log.Printf("Load config: %v", config)
 		options = loadConfig(config)
 	}
 	if options.extensions == nil {
@@ -477,11 +478,10 @@ func main() {
 		previewOptions.printDiff = false
 	}
 
-	info := log.New(os.Stderr, ":: ", 0)
 	warning := log.New(os.Stderr, ":: Warning: ", 0)
 	if options.color {
-		info.SetPrefix(ansi.Color(info.Prefix(), "magenta+b"))
-		warning.SetPrefix(ansi.Color(warning.Prefix(), "blue+b"))
+		log.SetPrefix(ansi.Color(log.Prefix(), "magenta+b"))
+		warning.SetPrefix(ansi.Color(warning.Prefix(), "yellow+b"))
 	}
 
 	// Cache index.
@@ -530,7 +530,7 @@ func main() {
 
 	sort.Sort(scriptBufferSlice(cache.scripts))
 	for _, s := range cache.scripts {
-		info.Printf("Load script: %v", s.path)
+		log.Printf("Load script: %v", s.path)
 	}
 
 	if options.prescript != "" {
