@@ -49,11 +49,7 @@ import (
 	"github.com/michiwend/gomusicbrainz"
 )
 
-const (
-	acoustIDAPIKey = "iOiEFv7y"
-	// Threshold above which a key is considered a match for the cache.
-	relationThreshold = 0.7
-)
+const acoustIDAPIKey = "iOiEFv7y"
 
 var (
 	// gomusicbrainz recreates an HTTP transport stream on every connection, thus
@@ -408,6 +404,9 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 // Return the releaseID corresponding most to tags found in 'input'.
 // When the relation is < RELATION_THRESHOLD, return the zero ReleaseID.
 func queryIndex(input *inputInfo) (ReleaseID, AlbumKey) {
+	// Threshold above which a key is considered a match for the cache.
+	const relationThreshold = 0.7
+
 	album := stringNorm(input.tags["album"])
 	if album == "" {
 		// If there is no 'album' tag, use the parent folder path. WARNING: This
