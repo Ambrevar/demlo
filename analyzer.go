@@ -194,9 +194,9 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	makeSandboxOutput(a.L, output)
 	a.scriptLog.SetOutput(&fr.logBuf)
 	for _, script := range cache.scripts {
-		err := runScript(a.L, script.name, input)
+		err := runScript(a.L, script.path, input)
 		if err != nil {
-			fr.Error.Printf("Script %s: %s", script.name, err)
+			fr.Error.Printf("Script %s: %s", script.path, err)
 			continue
 		}
 	}

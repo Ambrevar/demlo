@@ -120,25 +120,70 @@ type optionSet struct {
 	prescript    string
 	process      bool
 	removesource bool
-	scripts      scriptSlice
+	scripts      []string
 }
 
-// Load scripts in memory to reduce I/O.
-// We need to store the script name as well for logging.
+// scriptBuffer holds a script in memory.
+// 'path' is stored for logging.
 type scriptBuffer struct {
-	name string
+	path string
 	buf  string
 }
 
-// Scripts specified from commandline.
-type scriptSlice []string
+// scriptBufferSlice holds all the scripts to be called over each input file.
+// It can be sorted in the lexicographic order of the script basenames.
+type scriptBufferSlice []scriptBuffer
 
-func (s *scriptSlice) String() string {
-	// Print the default/config value.
-	return fmt.Sprintf("%q", options.scripts)
+func (s scriptBufferSlice) Len() int { return len(s) }
+func (s scriptBufferSlice) Less(i, j int) bool {
+	return filepath.Base(s[i].path) < filepath.Base(s[j].path)
 }
-func (s *scriptSlice) Set(arg string) error {
-	*s = append(*s, arg)
+func (s scriptBufferSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// Store the names of the scripts to load later on.
+type scriptAddFlag struct {
+	names *[]string
+}
+
+func (s *scriptAddFlag) String() string {
+	return fmt.Sprintf("%q", *s.names)
+}
+
+func (s *scriptAddFlag) Set(arg string) error {
+	*s.names = append(*s.names, arg)
+	return nil
+}
+
+// Remove the script names matching a regexp.
+// 'names' should point to the same slice as scriptAddFlag.
+type scriptRemoveFlag struct {
+	names *[]string
+}
+
+func (s *scriptRemoveFlag) String() string {
+	return ""
+}
+
+// We only need to match the basename so that behaviour is clearer regarding script
+// finding.
+func (s *scriptRemoveFlag) Set(arg string) error {
+	re, err := regexp.Compile(arg)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(*s.names); {
+		if re.MatchString(StripExt(filepath.Base((*s.names)[i]))) {
+			if i < len(*s.names)-1 {
+				*s.names = append((*s.names)[:i], (*s.names)[i+1:]...)
+			} else {
+				*s.names = (*s.names)[:i]
+			}
+		} else {
+			i++
+		}
+	}
+
 	return nil
 }
 
@@ -152,6 +197,7 @@ func (s *stringSetFlag) String() string {
 	sort.Strings(keylist)
 	return ": " + strings.Join(keylist, " ")
 }
+
 func (s *stringSetFlag) Set(arg string) error {
 	(*s)[arg] = true
 	return nil
@@ -281,6 +327,11 @@ func newFileRecord(path string) *FileRecord {
 }
 
 // Return the first existing match from 'list'.
+//
+// A script name from the config file can target a file found in current folder.
+// This choice makes it possible to replace a system/user script without
+// additional command-line parameters. Besides, since scripts are sorted by
+// basename, several identical basenames could lead to an unstable sort order.
 func findScript(name string) (path string, st os.FileInfo, err error) {
 	nameExt := name + ".lua"
 	list := []string{
@@ -312,7 +363,7 @@ func init() {
 		XDG_DATA_DIRS = "/usr/local/share/:/usr/share"
 	}
 
-	pathlistSub := func(pathlist, subpath string) string {
+	findInPath := func(pathlist, subpath string) string {
 		for _, dir := range filepath.SplitList(pathlist) {
 			if dir == "" {
 				dir = "."
@@ -326,8 +377,8 @@ func init() {
 		return ""
 	}
 
-	systemScriptRoot = pathlistSub(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
-	userScriptRoot = pathlistSub(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
+	systemScriptRoot = findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
+	userScriptRoot = findInPath(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
 
 	config = os.Getenv("DEMLORC")
 	if config == "" {
@@ -359,7 +410,7 @@ func main() {
 	}
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %v [OPTIONS] FILES|FOLDERS\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nUsage: %v [OPTIONS] FILES|FOLDERS\n\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, usage)
 		fmt.Fprintln(os.Stderr, "Options:")
 		flag.PrintDefaults()
@@ -377,10 +428,15 @@ func main() {
 	flag.StringVar(&options.prescript, "pre", options.prescript, "Run Lua commands before the other scripts.")
 	flag.BoolVar(&options.process, "p", options.process, "Apply changes: set tags and format, move/copy result to destination file.")
 	flag.BoolVar(&options.removesource, "rmsrc", options.removesource, "Remove source file after processing.")
-	var flagScripts scriptSlice
-	flag.Var(&flagScripts, "s", `Specify scripts to run in provided order.
-    	This option can be specified several times. If only the basename without extension is given,
-    	and if it is not found in current folder, the corresponding standard script will be used.`)
+
+	sFlag := scriptAddFlag{&options.scripts}
+	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order.
+    	This option can be specified several times. The path and the extension can be omitted.
+    	The current folder, the user script folder and the system script folder are search in this order.`)
+
+	rFlag := scriptRemoveFlag{&options.scripts}
+	flag.Var(&rFlag, "r", `Remove scripts where the regexp matches a part of the basename.
+    	An empty regexp removes all scripts.`)
 
 	var flagVersion = flag.Bool("v", false, "Print version and exit.")
 
@@ -449,19 +505,17 @@ func main() {
 	}
 
 	// Cache scripts.
-	if options.prescript != "" {
-		cache.scripts = append(cache.scripts, scriptBuffer{name: "prescript", buf: options.prescript})
-	}
-	if len(flagScripts) > 0 {
-		// CLI overrides default/config values.
-		options.scripts = flagScripts
-	}
+	visited := map[string]bool{}
 	for _, s := range options.scripts {
 		path, st, err := findScript(s)
 		if err != nil {
 			warning.Printf("%v: %v", err, s)
 			continue
 		}
+		if visited[path] {
+			continue
+		}
+		visited[path] = true
 		if sz := st.Size(); sz > scriptMaxsize {
 			warning.Printf("Script size %v > %v bytes, skipping: %v", sz, scriptMaxsize, path)
 			continue
@@ -471,11 +525,19 @@ func main() {
 			warning.Print("Script is not readable: ", err)
 			continue
 		}
-		info.Printf("Load script: %v", path)
-		cache.scripts = append(cache.scripts, scriptBuffer{name: path, buf: string(buf)})
+		cache.scripts = append(cache.scripts, scriptBuffer{path: path, buf: string(buf)})
+	}
+
+	sort.Sort(scriptBufferSlice(cache.scripts))
+	for _, s := range cache.scripts {
+		info.Printf("Load script: %v", s.path)
+	}
+
+	if options.prescript != "" {
+		cache.scripts = append([]scriptBuffer{{path: "prescript", buf: options.prescript}}, cache.scripts...)
 	}
 	if options.postscript != "" {
-		cache.scripts = append(cache.scripts, scriptBuffer{name: "postscript", buf: options.postscript})
+		cache.scripts = append(cache.scripts, scriptBuffer{path: "postscript", buf: options.postscript})
 	}
 
 	// Limit number of cores to online cores.

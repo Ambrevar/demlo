@@ -13,8 +13,8 @@ import (
 
 const (
 	sampleCuesheet    = "cuesheet/testdata/sample.cue"
-	scriptCase        = "scripts/case.lua"
-	scriptPunctuation = "scripts/punctuation.lua"
+	scriptCase        = "scripts/30-case.lua"
+	scriptPunctuation = "scripts/40-punctuation.lua"
 )
 
 var dummy log.Logger
@@ -39,7 +39,7 @@ func TestFixPunctuation(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox([]scriptBuffer{{name: "punctuation", buf: string(buf)}}, &dummy)
+	L, err := makeSandbox([]scriptBuffer{{path: "punctuation", buf: string(buf)}}, &dummy)
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
@@ -89,7 +89,7 @@ func TestTitleCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox([]scriptBuffer{{name: "case", buf: string(buf)}}, &dummy)
+	L, err := makeSandbox([]scriptBuffer{{path: "case", buf: string(buf)}}, &dummy)
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
@@ -129,7 +129,7 @@ func TestSentenceCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox([]scriptBuffer{{name: "case", buf: string(buf)}}, &dummy)
+	L, err := makeSandbox([]scriptBuffer{{path: "case", buf: string(buf)}}, &dummy)
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}

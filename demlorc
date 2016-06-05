@@ -7,7 +7,7 @@ color = true
 cores = 0
 
 -- Extensions to look for when a folder is browsed.
-extensions = {'aac', 'mkv'}
+-- extensions = {'mkv', 'ogg'}
 
 -- Fetch cover from an online database.
 getcover = false
@@ -27,5 +27,6 @@ process = false
 removesource = false
 
 -- Scripts to run by default.
+-- Demlo will run them in lexicographic order.
 -- Order matters, e.g. 'path' can be influenced by the modifications made by 'tag'.
-scripts = {'tag', 'sub', 'case', 'punctuation', 'encoding', 'path', 'cover'}
+scripts = {'10-tag', '20-sub', '30-case', '40-punctuation', '50-encoding', '60-path', '70-cover'}
