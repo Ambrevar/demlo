@@ -73,6 +73,8 @@ var (
 	userScriptRoot   string
 	config           string
 
+	warning = log.New(os.Stderr, ":: Warning: ", 0)
+
 	coverExtList = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
 
 	options = optionSet{}
@@ -350,6 +352,73 @@ func findScript(name string) (path string, st os.FileInfo, err error) {
 	return "", nil, errors.New("Script not found")
 }
 
+func printExtensions() {
+	extlist := make([]string, 0, len(options.extensions))
+	for k := range options.extensions {
+		extlist = append(extlist, k)
+	}
+	sort.StringSlice(extlist).Sort()
+	log.Printf("Register extensions: %v", strings.Join(extlist, " "))
+}
+
+func cacheScripts() {
+	visited := map[string]bool{}
+	for _, s := range options.scripts {
+		path, st, err := findScript(s)
+		if err != nil {
+			warning.Printf("%v: %v", err, s)
+			continue
+		}
+		if visited[path] {
+			continue
+		}
+		visited[path] = true
+		if sz := st.Size(); sz > scriptMaxsize {
+			warning.Printf("Script size %v > %v bytes, skipping: %v", sz, scriptMaxsize, path)
+			continue
+		}
+		buf, err := ioutil.ReadFile(path)
+		if err != nil {
+			warning.Print("Script is not readable: ", err)
+			continue
+		}
+		cache.scripts = append(cache.scripts, scriptBuffer{path: path, buf: string(buf)})
+	}
+
+	sort.Sort(scriptBufferSlice(cache.scripts))
+	for _, s := range cache.scripts {
+		log.Printf("Load script: %v", s.path)
+	}
+
+	if options.prescript != "" {
+		cache.scripts = append([]scriptBuffer{{path: "prescript", buf: options.prescript}}, cache.scripts...)
+	}
+	if options.postscript != "" {
+		cache.scripts = append(cache.scripts, scriptBuffer{path: "postscript", buf: options.postscript})
+	}
+}
+
+func cacheIndex() {
+	if options.index != "" {
+		st, err := os.Stat(options.index)
+		if err != nil {
+			warning.Printf("Index not found: [%v]", options.index)
+		} else if st.Size() > indexMaxsize {
+			warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.index)
+		} else if buf, err := ioutil.ReadFile(options.index); err != nil {
+			warning.Print("Index is not readable:", err)
+		} else {
+			// Enclose JSON list in a valid structure: index ends with a
+			// comma, hence the required dummy entry.
+			buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
+			err = json.Unmarshal(buf, &cache.index)
+			if err != nil {
+				warning.Printf("Invalid index %v: %v", options.index, err)
+			}
+		}
+	}
+}
+
 // Note to packagers: those following lines can be patched to fit the local
 // filesystem.
 func init() {
@@ -478,76 +547,16 @@ func main() {
 		previewOptions.printDiff = false
 	}
 
-	warning := log.New(os.Stderr, ":: Warning: ", 0)
 	if options.color {
 		log.SetPrefix(ansi.Color(log.Prefix(), "magenta+b"))
 		warning.SetPrefix(ansi.Color(warning.Prefix(), "yellow+b"))
 	}
 
-	{
-		extlist := make([]string, 0, len(options.extensions))
-		for k := range options.extensions {
-			extlist = append(extlist, k)
-		}
-		sort.StringSlice(extlist).Sort()
-		log.Printf("Register extensions: %v", strings.Join(extlist, " "))
-	}
+	printExtensions()
 
-	// Cache index.
-	if options.index != "" {
-		st, err := os.Stat(options.index)
-		if err != nil {
-			warning.Printf("Index not found: [%v]", options.index)
-		} else if st.Size() > indexMaxsize {
-			warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.index)
-		} else if buf, err := ioutil.ReadFile(options.index); err != nil {
-			warning.Print("Index is not readable:", err)
-		} else {
-			// Enclose JSON list in a valid structure: index ends with a
-			// comma, hence the required dummy entry.
-			buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
-			err = json.Unmarshal(buf, &cache.index)
-			if err != nil {
-				warning.Printf("Invalid index %v: %v", options.index, err)
-			}
-		}
-	}
+	cacheScripts()
 
-	// Cache scripts.
-	visited := map[string]bool{}
-	for _, s := range options.scripts {
-		path, st, err := findScript(s)
-		if err != nil {
-			warning.Printf("%v: %v", err, s)
-			continue
-		}
-		if visited[path] {
-			continue
-		}
-		visited[path] = true
-		if sz := st.Size(); sz > scriptMaxsize {
-			warning.Printf("Script size %v > %v bytes, skipping: %v", sz, scriptMaxsize, path)
-			continue
-		}
-		buf, err := ioutil.ReadFile(path)
-		if err != nil {
-			warning.Print("Script is not readable: ", err)
-			continue
-		}
-		cache.scripts = append(cache.scripts, scriptBuffer{path: path, buf: string(buf)})
-	}
-
-	sort.Sort(scriptBufferSlice(cache.scripts))
-	for _, s := range cache.scripts {
-		log.Printf("Load script: %v", s.path)
-	}
-
-	if options.prescript != "" {
-		cache.scripts = append([]scriptBuffer{{path: "prescript", buf: options.prescript}}, cache.scripts...)
-	}
-	if options.postscript != "" {
-		cache.scripts = append(cache.scripts, scriptBuffer{path: "postscript", buf: options.postscript})
-	}
+	cacheIndex()
 
 	// Limit number of cores to online cores.
 	if options.cores > runtime.NumCPU() || options.cores <= 0 {
