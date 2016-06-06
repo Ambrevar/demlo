@@ -3,8 +3,8 @@
 
 package main
 
-var sandbox = `
-_sandbox = {
+const luaWhitelist = `
+return {
 	-- demlo specific.
 	debug = debug,
 	stringnorm = stringnorm,
@@ -94,10 +94,11 @@ _sandbox = {
 		sort = table.sort,
 		unpack = table.unpack, -- Lua 5.2
 	},
-}
+}`
 
-function _restore_sandbox(t)
-	for k, v in pairs(t) do
+const luaRestoreSandbox = `
+return function (whitelist)
+	for k, v in pairs(whitelist) do
 		if type(v) == 'table' then
 			_G[k]={}
 			for ks, vs in pairs(v) do
@@ -107,20 +108,21 @@ function _restore_sandbox(t)
 			_G[k] = v
 		end
 	end
-end
+end`
 
--- Purge _G.
-for k, v in pairs(_G) do
-	if k ~= '_G' and v ~= _sandbox and v ~= _restore_sandbox then
-		if not _sandbox[k] then
-			_G[k] = nil
-		elseif type(v) == 'table' then
-			for ks in pairs(v) do
-				if not _sandbox[k][ks] then
-					v[ks] = nil
+const luaSetSandbox = `
+return function (whitelist)
+	for k, v in pairs(_G) do
+		if k ~= '_G' then
+			if not whitelist[k] then
+				_G[k] = nil
+			elseif type(v) == 'table' then
+				for ks in pairs(v) do
+					if not whitelist[k][ks] then
+						v[ks] = nil
+					end
 				end
 			end
 		end
 	end
-end
-`
+end`

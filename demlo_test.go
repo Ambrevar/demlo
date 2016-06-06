@@ -39,7 +39,8 @@ func TestFixPunctuation(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox([]scriptBuffer{{path: "punctuation", buf: string(buf)}}, &dummy)
+	L, err := makeSandbox(nil)
+	sandboxCompileScripts(L, []scriptBuffer{{path: "punctuation", buf: string(buf)}})
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
@@ -89,7 +90,8 @@ func TestTitleCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox([]scriptBuffer{{path: "case", buf: string(buf)}}, &dummy)
+	L, err := makeSandbox(nil)
+	sandboxCompileScripts(L, []scriptBuffer{{path: "case", buf: string(buf)}})
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
@@ -129,7 +131,8 @@ func TestSentenceCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox([]scriptBuffer{{path: "case", buf: string(buf)}}, &dummy)
+	L, err := makeSandbox(nil)
+	sandboxCompileScripts(L, []scriptBuffer{{path: "case", buf: string(buf)}})
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}

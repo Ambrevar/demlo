@@ -13,16 +13,14 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"bitbucket.org/ambrevar/demlo/golua/unicode"
 	"github.com/aarzilli/golua/lua"
 )
 
 const (
-	registryRestoreSandbox = "_restore_sandbox"
-	registrySandbox        = "_sandbox"
-	registryScripts        = "_scripts"
+	registryWhitelist = "_whitelist"
+	registryScripts   = "_scripts"
 )
 
 func luaStringNorm(L *lua.State) int {
@@ -107,17 +105,15 @@ func lua2goOutCover(L *lua.State) outputCover {
 
 // The caller is responsible for closing the Lua state.
 // Add a `defer L.Close()` to the calling code if there is no error.
-func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, error) {
+func makeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 	L := lua.NewState()
 	L.OpenLibs()
 
-	// Register before defining the sandbox: these functions will be restored
+	// Register before setting up the sandbox: these functions will be restored
 	// together with the sandbox.
-	// The closure allows access to the script logger.
-	luaDebug := func(L *lua.State) int {
-		return 0
-	}
-	if options.debug {
+	// The closure allows access to the external logger.
+	luaDebug := func(L *lua.State) int { return 0 }
+	if logPrint != nil {
 		luaDebug = func(L *lua.State) int {
 			var arglist []interface{}
 			nargs := L.GetTop()
@@ -126,7 +122,7 @@ func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, err
 					arglist = append(arglist, L.ToString(i))
 				}
 			}
-			scriptLog.Println(arglist...)
+			logPrint(arglist...)
 			return 0
 		}
 	}
@@ -136,26 +132,30 @@ func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, err
 
 	unicode.GoLuaReplaceFuncs(L)
 
-	// Enclose L in the sandbox. See 'sandbox.go'.
-	err := L.DoString(sandbox)
+	// Store the whitelist in registry to avoid tampering it.
+	L.PushString(registryWhitelist)
+	err := L.DoString(luaWhitelist)
 	if err != nil {
 		log.Fatal("Spurious sandbox", err)
 	}
-
-	// Store the sandbox in registry and remove it from _G to avoid tampering it.
-	L.PushString(registrySandbox)
-	L.GetGlobal("_sandbox")
 	L.SetTable(lua.LUA_REGISTRYINDEX)
-	L.PushNil()
-	L.SetGlobal("_sandbox")
 
-	L.PushString(registryRestoreSandbox)
-	L.GetGlobal("_restore_sandbox")
-	L.SetTable(lua.LUA_REGISTRYINDEX)
-	L.PushNil()
-	L.SetGlobal("_restore_sandbox")
+	// Purge _G from everything but the content of the whitelist.
+	err = L.DoString(luaSetSandbox)
+	if err != nil {
+		log.Fatal("Cannot load function to set sandbox", err)
+	}
+	L.PushString(registryWhitelist)
+	L.GetTable(lua.LUA_REGISTRYINDEX)
+	err = L.Call(1, 0)
+	if err != nil {
+		log.Fatal("Failed to set sandbox", err)
+	}
 
-	// Compile scripts.
+	return L, nil
+}
+
+func sandboxCompileScripts(L *lua.State, scripts []scriptBuffer) {
 	L.PushString(registryScripts)
 	L.NewTable()
 	for _, script := range scripts {
@@ -169,8 +169,6 @@ func makeSandbox(scripts []scriptBuffer, scriptLog *log.Logger) (*lua.State, err
 		}
 	}
 	L.SetTable(lua.LUA_REGISTRYINDEX)
-
-	return L, nil
 }
 
 func makeSandboxInput(L *lua.State, input *inputInfo) {
@@ -353,7 +351,7 @@ func sanitizeOutput(L *lua.State) {
 		// First key.
 		L.PushNil()
 		for L.Next(-2) != 0 {
-			// Use 'key' (at index -2) and 'value' (at index -1)
+			// Use 'key' at index -2 and 'value' at index -1.
 			if L.IsString(-2) && L.IsString(-1) {
 				// Convert numbers to strings.
 				L.ToString(-1)
@@ -371,13 +369,15 @@ func sanitizeOutput(L *lua.State) {
 
 func runScript(L *lua.State, script string, input *inputInfo) error {
 	// Restore the sandbox.
-	L.PushString(registryRestoreSandbox)
-	L.GetTable(lua.LUA_REGISTRYINDEX)
-	L.PushString(registrySandbox)
-	L.GetTable(lua.LUA_REGISTRYINDEX)
-	err := L.Call(1, 0)
+	err := L.DoString(luaRestoreSandbox)
 	if err != nil {
-		log.Fatal("Spurious sandbox", err)
+		log.Fatal("Cannot load function to restore sandbox", err)
+	}
+	L.PushString(registryWhitelist)
+	L.GetTable(lua.LUA_REGISTRYINDEX)
+	err = L.Call(1, 0)
+	if err != nil {
+		log.Fatal("Failed to restore sandbox", err)
 	}
 
 	makeSandboxInput(L, input)
@@ -502,50 +502,15 @@ func scriptOutput(L *lua.State) outputInfo {
 	return output
 }
 
-func loadConfig(config string) optionSet {
-	L := lua.NewState()
+func loadConfig(config string) (o optionSet) {
+	L, err := makeSandbox(log.Println)
 	defer L.Close()
-	L.OpenLibs()
-
-	// Register before defining the sandbox.
-	luaDebug := func(L *lua.State) int {
-		var arglist []interface{}
-		nargs := L.GetTop()
-		for i := 1; i <= nargs; i++ {
-			if L.IsString(i) {
-				arglist = append(arglist, L.ToString(i))
-			}
-		}
-		fmt.Fprintln(os.Stderr, arglist...)
-		return 0
-	}
-	L.Register("debug", luaDebug)
-	L.Register("stringnorm", luaStringNorm)
-	L.Register("stringrel", luaStringRel)
-
-	unicode.GoLuaReplaceFuncs(L)
-
-	// Enclose L in the sandbox.
-	err := L.DoString(sandbox)
-	if err != nil {
-		log.Fatal("Spurious sandbox", err)
-	}
-
-	// Clean up restoration data: not needed for config since the Lua state will
-	// not be reused.
-	L.PushNil()
-	L.SetGlobal("_sandbox")
-
-	L.PushNil()
-	L.SetGlobal("_restore_sandbox")
 
 	// Load config.
 	err = L.DoFile(config)
 	if err != nil {
 		log.Fatalf("Error loading config: %s", err)
 	}
-
-	o := optionSet{}
 
 	L.GetGlobal("color")
 	o.color = L.ToBoolean(-1)

@@ -48,10 +48,15 @@ func (a *analyzer) Init() {
 
 	// Compile scripts.
 	var err error
-	a.L, err = makeSandbox(cache.scripts, a.scriptLog)
+	luaDebug := a.scriptLog.Println
+	if !options.debug {
+		luaDebug = nil
+	}
+	a.L, err = makeSandbox(luaDebug)
 	if err != nil {
 		log.Fatal(err)
 	}
+	sandboxCompileScripts(a.L, cache.scripts)
 }
 
 func (a *analyzer) Close() {
