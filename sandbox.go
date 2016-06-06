@@ -5,11 +5,6 @@ package main
 
 const luaWhitelist = `
 return {
-	-- demlo specific.
-	debug = debug,
-	stringnorm = stringnorm,
-	stringrel = stringrel,
-
 	-- golua specific: pcall and xpcall are unsafe, we do not add them to the sand box. Coroutines might not be supported, do not include them either.
 	-- golua comes with its own message handler:
 	golua_default_msghandler = golua_default_msghandler,

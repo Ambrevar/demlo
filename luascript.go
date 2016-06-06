@@ -103,11 +103,31 @@ func lua2goOutCover(L *lua.State) outputCover {
 	return out
 }
 
+// Registers a Go function as a global variable and add it to the sandbox.
+func sandboxRegister(L *lua.State, name string, f lua.LuaGoFunction) {
+	L.PushGoFunction(f)
+	L.SetGlobal(name)
+
+	L.PushString(registryWhitelist)
+	L.GetTable(lua.LUA_REGISTRYINDEX)
+	L.PushGoFunction(f)
+	L.SetField(-2, name)
+}
+
 // The caller is responsible for closing the Lua state.
 // Add a `defer L.Close()` to the calling code if there is no error.
 func makeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 	L := lua.NewState()
 	L.OpenLibs()
+	unicode.GoLuaReplaceFuncs(L)
+
+	// Store the whitelist in registry to avoid tampering it.
+	L.PushString(registryWhitelist)
+	err := L.DoString(luaWhitelist)
+	if err != nil {
+		log.Fatal("Spurious sandbox", err)
+	}
+	L.SetTable(lua.LUA_REGISTRYINDEX)
 
 	// Register before setting up the sandbox: these functions will be restored
 	// together with the sandbox.
@@ -126,19 +146,10 @@ func makeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 			return 0
 		}
 	}
-	L.Register("debug", luaDebug)
-	L.Register("stringnorm", luaStringNorm)
-	L.Register("stringrel", luaStringRel)
 
-	unicode.GoLuaReplaceFuncs(L)
-
-	// Store the whitelist in registry to avoid tampering it.
-	L.PushString(registryWhitelist)
-	err := L.DoString(luaWhitelist)
-	if err != nil {
-		log.Fatal("Spurious sandbox", err)
-	}
-	L.SetTable(lua.LUA_REGISTRYINDEX)
+	sandboxRegister(L, "debug", luaDebug)
+	sandboxRegister(L, "stringnorm", luaStringNorm)
+	sandboxRegister(L, "stringrel", luaStringRel)
 
 	// Purge _G from everything but the content of the whitelist.
 	err = L.DoString(luaSetSandbox)
