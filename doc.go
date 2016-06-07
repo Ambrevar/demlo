@@ -100,9 +100,9 @@ script call to enforce consistency. Local variables are lost from one script
 call to another. Global variables are preserved. Use this feature to pass data
 like options or new functions.
 
-'output' is guaranteed to be a table, but Demlo does not provide more
-consistency check. Demlo will only extract the fields with the right type as
-described in the 'Variables' section.
+'output' structure consistency is guaranteed at the start of every script. Demlo
+will only extract the fields with the right type as described in the 'Variables'
+section.
 
 Warning: Do not abuse of global variables, especially when processing non-fixed
 size data (e.g. tables). Data could grow big and slow down the program.

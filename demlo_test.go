@@ -5,7 +5,6 @@ package main
 
 import (
 	"io/ioutil"
-	"log"
 	"testing"
 
 	"bitbucket.org/ambrevar/demlo/cuesheet"
@@ -16,8 +15,6 @@ const (
 	scriptCase        = "scripts/30-case.lua"
 	scriptPunctuation = "scripts/40-punctuation.lua"
 )
-
-var dummy log.Logger
 
 func TestFixPunctuation(t *testing.T) {
 	input := inputInfo{}
@@ -39,19 +36,17 @@ func TestFixPunctuation(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox(nil)
-	sandboxCompileScripts(L, []scriptBuffer{{path: "punctuation", buf: string(buf)}})
+	L, err := MakeSandbox(nil)
+	SandboxCompileScripts(L, []scriptBuffer{{path: "punctuation", buf: string(buf)}})
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
 	defer L.Close()
 
-	makeSandboxOutput(L, &output)
-	err = runScript(L, "punctuation", &input)
+	err = RunScript(L, "punctuation", &input, &output)
 	if err != nil {
 		t.Fatalf("script punctuation: %s", err)
 	}
-	output = scriptOutput(L)
 
 	for want, got := range output.Tags {
 		if got != want {
@@ -90,19 +85,17 @@ func TestTitleCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox(nil)
-	sandboxCompileScripts(L, []scriptBuffer{{path: "case", buf: string(buf)}})
+	L, err := MakeSandbox(nil)
+	SandboxCompileScripts(L, []scriptBuffer{{path: "case", buf: string(buf)}})
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
 	defer L.Close()
 
-	makeSandboxOutput(L, &output)
-	err = runScript(L, "case", &input)
+	err = RunScript(L, "case", &input, &output)
 	if err != nil {
 		t.Fatalf("script case: %s", err)
 	}
-	output = scriptOutput(L)
 
 	for want, got := range output.Tags {
 		if got != want {
@@ -131,8 +124,8 @@ func TestSentenceCase(t *testing.T) {
 	}
 
 	// Compile scripts.
-	L, err := makeSandbox(nil)
-	sandboxCompileScripts(L, []scriptBuffer{{path: "case", buf: string(buf)}})
+	L, err := MakeSandbox(nil)
+	SandboxCompileScripts(L, []scriptBuffer{{path: "case", buf: string(buf)}})
 	if err != nil {
 		t.Fatal("Spurious sandbox", err)
 	}
@@ -142,12 +135,10 @@ func TestSentenceCase(t *testing.T) {
 	L.PushBoolean(true)
 	L.SetGlobal("scase")
 
-	makeSandboxOutput(L, &output)
-	err = runScript(L, "case", &input)
+	err = RunScript(L, "case", &input, &output)
 	if err != nil {
 		t.Fatalf("script case: %s", err)
 	}
-	output = scriptOutput(L)
 
 	for want, got := range output.Tags {
 		if got != want {

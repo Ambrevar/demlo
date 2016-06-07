@@ -486,7 +486,7 @@ func main() {
 	st, err := os.Stat(config)
 	if err == nil && st.Mode().IsRegular() {
 		log.Printf("Load config: %v", config)
-		options = loadConfig(config)
+		options = LoadConfig(config)
 	}
 	if options.extensions == nil {
 		// Defaults: Init here so that unspecified config options get properly set.

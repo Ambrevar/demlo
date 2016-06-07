@@ -52,11 +52,11 @@ func (a *analyzer) Init() {
 	if !options.debug {
 		luaDebug = nil
 	}
-	a.L, err = makeSandbox(luaDebug)
+	a.L, err = MakeSandbox(luaDebug)
 	if err != nil {
 		log.Fatal(err)
 	}
-	sandboxCompileScripts(a.L, cache.scripts)
+	SandboxCompileScripts(a.L, cache.scripts)
 }
 
 func (a *analyzer) Close() {
@@ -196,16 +196,15 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	}
 
 	// Create a Lua sandbox containing input and output, then run scripts.
-	makeSandboxOutput(a.L, output)
 	a.scriptLog.SetOutput(&fr.logBuf)
 	for _, script := range cache.scripts {
-		err := runScript(a.L, script.path, input)
+		err := RunScript(a.L, script.path, input, output)
 		if err != nil {
 			fr.Error.Printf("Script %s: %s", script.path, err)
+			// TODO: Abort on error.
 			continue
 		}
 	}
-	*output = scriptOutput(a.L)
 
 	// Foolproofing.
 	// -No format: use input.format.

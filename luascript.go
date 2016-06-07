@@ -1,8 +1,6 @@
 // Copyright © 2013-2016 Pierre Neidhardt <ambrevar@gmail.com>
 // Use of this file is governed by the license that can be found in LICENSE.
 
-// TODO: Enforce field/type consistency in 'output'?
-
 // Convert 'input' and 'output' from Go to Lua and from Lua to Go. Almost all
 // scripting support is implemented in this file: in case of library change,
 // this is the only file that would need some overhaul.
@@ -49,7 +47,7 @@ func sandboxRegister(L *lua.State, name string, f interface{}) {
 
 // The caller is responsible for closing the Lua state.
 // Add a `defer L.Close()` to the calling code if there is no error.
-func makeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
+func MakeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 	L := lua.NewState()
 	L.OpenLibs()
 	unicode.GoLuaReplaceFuncs(L)
@@ -99,7 +97,9 @@ func makeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 	return L, nil
 }
 
-func sandboxCompileScripts(L *lua.State, scripts []scriptBuffer) {
+// SandboxCompileScripts transfers the script buffer to the Lua state L and
+// references them in LUA_REGISTRYINDEX.
+func SandboxCompileScripts(L *lua.State, scripts []scriptBuffer) {
 	L.PushString(registryScripts)
 	L.NewTable()
 	for _, script := range scripts {
@@ -115,13 +115,7 @@ func sandboxCompileScripts(L *lua.State, scripts []scriptBuffer) {
 	L.SetTable(lua.LUA_REGISTRYINDEX)
 }
 
-func makeSandboxOutput(L *lua.State, output *outputInfo) {
-	goToLua(L, "output", *output)
-}
-
-// The user is responsible for ensuring the integrity of 'output'. We convert
-// numbers to strings in tags for convenience.
-func sanitizeOutput(L *lua.State) {
+func outputNumbersToStrings(L *lua.State) {
 	L.GetGlobal("output")
 
 	if !L.IsTable(-1) {
@@ -150,7 +144,11 @@ func sanitizeOutput(L *lua.State) {
 	L.Pop(1)
 }
 
-func runScript(L *lua.State, script string, input *inputInfo) error {
+// RunScript executes script named 'script' with 'input' and 'output' set as global variable.
+// Any change made to 'input' is discarded. Change to 'output' are transfered
+// back to Go on every script call to guarantee type consistency across script
+// calls (Lua is dynamically typed).
+func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo) error {
 	// Restore the sandbox.
 	err := L.DoString(luaRestoreSandbox)
 	if err != nil {
@@ -164,6 +162,7 @@ func runScript(L *lua.State, script string, input *inputInfo) error {
 	}
 
 	goToLua(L, "input", *input)
+	goToLua(L, "output", *output)
 
 	// Shortcut (mostly for prescript and postscript).
 	L.GetGlobal("input")
@@ -174,8 +173,6 @@ func runScript(L *lua.State, script string, input *inputInfo) error {
 	L.GetField(-1, "tags")
 	L.SetGlobal("o")
 	L.Pop(1)
-
-	sanitizeOutput(L)
 
 	// Call the compiled script.
 	L.PushString(registryScripts)
@@ -197,21 +194,22 @@ func runScript(L *lua.State, script string, input *inputInfo) error {
 	}
 	L.Pop(1)
 
+	// We allow tags to be numbers for convenience.
+	outputNumbersToStrings(L)
+
+	L.GetGlobal("output")
+	r := luar.LuaToGo(L, reflect.TypeOf(*output), -1)
+	L.Pop(1)
+
+	// TODO: Don't copy variable.
+	*output = r.(outputInfo)
+
 	return nil
 }
 
-func scriptOutput(L *lua.State) (output outputInfo) {
-	L.GetGlobal("output")
-	r := luar.LuaToGo(L, reflect.TypeOf(output), -1)
-	L.Pop(1)
-
-	output = r.(outputInfo)
-
-	return output
-}
-
-func loadConfig(config string) (o optionSet) {
-	L, err := makeSandbox(log.Println)
+// TODO: Simplify this function.
+func LoadConfig(config string) (o optionSet) {
+	L, err := MakeSandbox(log.Println)
 	defer L.Close()
 
 	// Load config.
