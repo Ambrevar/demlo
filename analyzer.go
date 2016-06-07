@@ -200,7 +200,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	for _, script := range cache.scripts {
 		err := RunScript(a.L, script.path, input, output)
 		if err != nil {
-			fr.Error.Printf("Script %s: %s", script.path, err)
+			fr.Error.Printf("Script %s: %s", StripExt(filepath.Base(script.path)), err)
 			// TODO: Abort on error.
 			continue
 		}
