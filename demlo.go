@@ -110,19 +110,18 @@ type dstCoverKey struct {
 // Precedence: flags > config > defaults.
 // Exception: extensions specified in flags are merged with config extensions.
 type optionSet struct {
-	color        bool
-	cores        int
-	debug        bool
-	extensions   stringSetFlag
-	getcover     bool
-	gettags      bool
-	index        string
-	overwrite    bool
-	postscript   string
-	prescript    string
-	process      bool
-	removesource bool
-	scripts      []string
+	Color        bool
+	Cores        int
+	Debug        bool
+	Extensions   stringSetFlag
+	Getcover     bool
+	Gettags      bool
+	Index        string
+	Postscript   string
+	Prescript    string
+	Process      bool
+	Removesource bool
+	Scripts      []string
 }
 
 // scriptBuffer holds a script in memory.
@@ -313,11 +312,11 @@ func newFileRecord(path string) *FileRecord {
 	fr.Warning = log.New(&fr.logBuf, ":: Warning: ", 0)
 	fr.Error = log.New(&fr.logBuf, ":: Error: ", 0)
 
-	if options.debug {
+	if options.Debug {
 		fr.Debug.SetOutput(&fr.logBuf)
 	}
 
-	if options.color {
+	if options.Color {
 		fr.Debug.SetPrefix(ansi.Color(fr.Debug.Prefix(), "cyan+b"))
 		fr.Info.SetPrefix(ansi.Color(fr.Info.Prefix(), "magenta+b"))
 		fr.Section.SetPrefix(ansi.Color(fr.Section.Prefix(), "green+b"))
@@ -353,8 +352,8 @@ func findScript(name string) (path string, st os.FileInfo, err error) {
 }
 
 func printExtensions() {
-	extlist := make([]string, 0, len(options.extensions))
-	for k := range options.extensions {
+	extlist := make([]string, 0, len(options.Extensions))
+	for k := range options.Extensions {
 		extlist = append(extlist, k)
 	}
 	sort.StringSlice(extlist).Sort()
@@ -388,7 +387,7 @@ func printScripts() {
 
 func cacheScripts() {
 	visited := map[string]bool{}
-	for _, s := range options.scripts {
+	for _, s := range options.Scripts {
 		path, st, err := findScript(s)
 		if err != nil {
 			warning.Printf("%v: %v", err, s)
@@ -415,22 +414,22 @@ func cacheScripts() {
 		log.Printf("Load script: %v", s.path)
 	}
 
-	if options.prescript != "" {
-		cache.scripts = append([]scriptBuffer{{path: "prescript", buf: options.prescript}}, cache.scripts...)
+	if options.Prescript != "" {
+		cache.scripts = append([]scriptBuffer{{path: "prescript", buf: options.Prescript}}, cache.scripts...)
 	}
-	if options.postscript != "" {
-		cache.scripts = append(cache.scripts, scriptBuffer{path: "postscript", buf: options.postscript})
+	if options.Postscript != "" {
+		cache.scripts = append(cache.scripts, scriptBuffer{path: "postscript", buf: options.Postscript})
 	}
 }
 
 func cacheIndex() {
-	if options.index != "" {
-		st, err := os.Stat(options.index)
+	if options.Index != "" {
+		st, err := os.Stat(options.Index)
 		if err != nil {
-			warning.Printf("Index not found: [%v]", options.index)
+			warning.Printf("Index not found: [%v]", options.Index)
 		} else if st.Size() > indexMaxsize {
-			warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.index)
-		} else if buf, err := ioutil.ReadFile(options.index); err != nil {
+			warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.Index)
+		} else if buf, err := ioutil.ReadFile(options.Index); err != nil {
 			warning.Print("Index is not readable:", err)
 		} else {
 			// Enclose JSON list in a valid structure: index ends with a
@@ -438,7 +437,7 @@ func cacheIndex() {
 			buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
 			err = json.Unmarshal(buf, &cache.index)
 			if err != nil {
-				warning.Printf("Invalid index %v: %v", options.index, err)
+				warning.Printf("Invalid index %v: %v", options.Index, err)
 			}
 		}
 	}
@@ -488,9 +487,9 @@ func main() {
 		log.Printf("Load config: %v", config)
 		options = LoadConfig(config)
 	}
-	if options.extensions == nil {
+	if options.Extensions == nil {
 		// Defaults: Init here so that unspecified config options get properly set.
-		options.extensions = stringSetFlag{
+		options.Extensions = stringSetFlag{
 			"aac":  true,
 			"ape":  true,
 			"flac": true,
@@ -511,25 +510,25 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.BoolVar(&options.color, "color", options.color, "Color output.")
-	flag.IntVar(&options.cores, "cores", options.cores, "Run N processes in parallel. If 0, use all online cores.")
-	flag.BoolVar(&options.debug, "debug", false, "Enable debug messages.")
-	flag.Var(&options.extensions, "ext", "Additional extensions to look for when a folder is browsed.")
-	flag.BoolVar(&options.getcover, "c", options.getcover, "Fetch cover from the Internet.")
-	flag.BoolVar(&options.gettags, "t", options.gettags, "Fetch tags from the Internet.")
-	flag.StringVar(&options.index, "i", options.index, `Use index file to set input and output metadata.
+	flag.BoolVar(&options.Color, "color", options.Color, "Color output.")
+	flag.IntVar(&options.Cores, "cores", options.Cores, "Run N processes in parallel. If 0, use all online cores.")
+	flag.BoolVar(&options.Debug, "debug", false, "Enable debug messages.")
+	flag.Var(&options.Extensions, "ext", "Additional extensions to look for when a folder is browsed.")
+	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet.")
+	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet.")
+	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
-	flag.StringVar(&options.postscript, "post", options.postscript, "Run Lua commands after the other scripts.")
-	flag.StringVar(&options.prescript, "pre", options.prescript, "Run Lua commands before the other scripts.")
-	flag.BoolVar(&options.process, "p", options.process, "Apply changes: set tags and format, move/copy result to destination file.")
-	flag.BoolVar(&options.removesource, "rmsrc", options.removesource, "Remove source file after processing.")
+	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua commands after the other scripts.")
+	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua commands before the other scripts.")
+	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
+	flag.BoolVar(&options.Removesource, "rmsrc", options.Removesource, "Remove source file after processing.")
 
-	sFlag := scriptAddFlag{&options.scripts}
+	sFlag := scriptAddFlag{&options.Scripts}
 	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order.
     	This option can be specified several times. The path and the extension can be omitted.
     	The current folder, the user script folder and the system script folder are search in this order.`)
 
-	rFlag := scriptRemoveFlag{&options.scripts}
+	rFlag := scriptRemoveFlag{&options.Scripts}
 	flag.Var(&rFlag, "r", `Remove scripts where the regexp matches a part of the basename.
     	An empty regexp removes all scripts.`)
 
@@ -565,14 +564,14 @@ func main() {
 	// Disable diff preview if stderr is does not have a 'TerminalSize'.
 	st, _ = os.Stderr.Stat()
 	if (st.Mode() & os.ModeCharDevice) == 0 {
-		options.color = false
+		options.Color = false
 		previewOptions.printDiff = false
 	} else if _, _, err := TerminalSize(int(os.Stderr.Fd())); err != nil {
-		options.color = false
+		options.Color = false
 		previewOptions.printDiff = false
 	}
 
-	if options.color {
+	if options.Color {
 		log.SetPrefix(ansi.Color(log.Prefix(), "magenta+b"))
 		warning.SetPrefix(ansi.Color(warning.Prefix(), "yellow+b"))
 	}
@@ -583,19 +582,19 @@ func main() {
 	cacheIndex()
 
 	// Limit number of cores to online cores.
-	if options.cores > runtime.NumCPU() || options.cores <= 0 {
-		options.cores = runtime.NumCPU()
+	if options.Cores > runtime.NumCPU() || options.Cores <= 0 {
+		options.Cores = runtime.NumCPU()
 	}
 
 	// Pipeline.
 	// The log queue should be able to hold all routines at once.
-	p := NewPipeline(1, 1+options.cores+options.cores)
+	p := NewPipeline(1, 1+options.Cores+options.Cores)
 
 	p.Add(func() Stage { return &walker{} }, 1)
-	p.Add(func() Stage { return &analyzer{} }, options.cores)
+	p.Add(func() Stage { return &analyzer{} }, options.Cores)
 
-	if options.process {
-		p.Add(func() Stage { return &transformer{} }, options.cores)
+	if options.Process {
+		p.Add(func() Stage { return &transformer{} }, options.Cores)
 	}
 
 	// Produce pipeline input. This should be run in parallel to pipeline

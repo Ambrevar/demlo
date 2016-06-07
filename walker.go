@@ -19,7 +19,7 @@ func (w *walker) Init() {
 func (w *walker) Close() {}
 
 func (w *walker) Run(fr *FileRecord) error {
-	if !options.extensions[strings.ToLower(Ext(fr.input.path))] {
+	if !options.Extensions[strings.ToLower(Ext(fr.input.path))] {
 		fr.Debug.Printf("Unknown extension '%v'", Ext(fr.input.path))
 		return errInputFile
 	}

@@ -94,7 +94,7 @@ func transformStream(fr *FileRecord, track int) error {
 
 	// Be verbose only when running a single process. Otherwise output gets
 	// would get messy.
-	if options.cores > 1 {
+	if options.Cores > 1 {
 		ffmpegParameters = append(ffmpegParameters, "-v", "warning")
 	} else {
 		ffmpegParameters = append(ffmpegParameters, "-v", "error")
@@ -171,7 +171,7 @@ func transformStream(fr *FileRecord, track int) error {
 		return err
 	}
 
-	if options.removesource {
+	if options.Removesource {
 		if err != nil {
 			fr.Error.Print(err)
 			return err
@@ -196,7 +196,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 	input := &fr.input
 	output := &fr.output[track]
 
-	dst, isInplace, err := makeTrackDst(output.Path, input.path, options.removesource)
+	dst, isInplace, err := makeTrackDst(output.Path, input.path, options.Removesource)
 	if err != nil {
 		fr.Error.Print(err)
 		return err
@@ -204,10 +204,10 @@ func transformMetadata(fr *FileRecord, track int) error {
 
 	if !isInplace {
 		err = nil
-		if options.removesource {
+		if options.Removesource {
 			err = os.Rename(input.path, dst)
 		}
-		if err != nil || !options.removesource {
+		if err != nil || !options.Removesource {
 			// If renaming failed, it might be because of a cross-device
 			// destination. We try to copy instead.
 			err := CopyFile(dst, input.path)
@@ -215,7 +215,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 				fr.Error.Println(err)
 				return err
 			}
-			if options.removesource {
+			if options.Removesource {
 				err = os.Remove(input.path)
 				if err != nil {
 					fr.Error.Println(err)

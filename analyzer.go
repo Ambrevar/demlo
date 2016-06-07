@@ -42,14 +42,14 @@ type analyzer struct {
 func (a *analyzer) Init() {
 	// Script log output must be set for each FileRecord when calling the scripts.
 	a.scriptLog = log.New(nil, "@@ ", 0)
-	if options.color {
+	if options.Color {
 		a.scriptLog.SetPrefix(ansi.Color(a.scriptLog.Prefix(), "cyan+b"))
 	}
 
 	// Compile scripts.
 	var err error
 	luaDebug := a.scriptLog.Println
-	if !options.debug {
+	if !options.Debug {
 		luaDebug = nil
 	}
 	a.L, err = MakeSandbox(luaDebug)
@@ -128,13 +128,13 @@ func (a *analyzer) Run(fr *FileRecord) error {
 	if input.trackCount == 1 {
 		var releaseID ReleaseID
 		prepareTrackTags(input, 1)
-		if options.gettags {
+		if options.Gettags {
 			releaseID, defaultTags, err = getOnlineTags(fr)
 			if err != nil {
 				fr.Debug.Print("Online tags query error: ", err)
 			}
 		}
-		if options.getcover {
+		if options.Getcover {
 			fr.onlineCoverCache, input.onlineCover, err = getOnlineCover(fr, releaseID)
 			if err != nil {
 				fr.Debug.Print("Online cover query error: ", err)
@@ -179,7 +179,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 
 	if o, ok := cache.index[input.path]; ok && len(o) > track {
 		*output = cache.index[input.path][track]
-		options.gettags = false
+		options.Gettags = false
 	} else {
 
 		// Default tags.
@@ -441,7 +441,7 @@ func prepareTrackTags(input *inputInfo, track int) {
 func prettyPrint(fr *FileRecord, attr, input, output string, attrMaxlen, valueMaxlen int) {
 	colorIn := ""
 	colorOut := ""
-	if options.color && input != output &&
+	if options.Color && input != output &&
 		(attr != "parameters" || output != "[-c:a copy]") &&
 		((attr != "embedded" && attr != "external") || (len(output) >= 3 && output[len(output)-3:] != " ''")) {
 		colorIn = "red"
@@ -544,7 +544,7 @@ func preview(fr *FileRecord, track int) {
 	sort.Strings(tagList)
 
 	colorTitle := ""
-	if options.color {
+	if options.Color {
 		colorTitle = "white+b"
 	}
 

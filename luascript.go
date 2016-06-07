@@ -201,89 +201,24 @@ func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo
 	r := luar.LuaToGo(L, reflect.TypeOf(*output), -1)
 	L.Pop(1)
 
-	// TODO: Don't copy variable.
 	*output = r.(outputInfo)
 
 	return nil
 }
 
-// TODO: Simplify this function.
-func LoadConfig(config string) (o optionSet) {
+func LoadConfig(config string) (options optionSet) {
 	L, err := MakeSandbox(log.Println)
 	defer L.Close()
 
-	// Load config.
 	err = L.DoFile(config)
 	if err != nil {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	L.GetGlobal("color")
-	o.color = L.ToBoolean(-1)
+	L.GetGlobal("_G")
+	r := luar.LuaToGo(L, reflect.TypeOf(options), -1)
 	L.Pop(1)
 
-	L.GetGlobal("cores")
-	o.cores = L.ToInteger(-1)
-	L.Pop(1)
-
-	L.GetGlobal("extensions")
-	if L.IsTable(-1) {
-		o.extensions = stringSetFlag{}
-		for i := 1; ; i++ {
-			L.PushInteger(int64(i))
-			L.GetTable(-2)
-			if L.IsNil(-1) {
-				L.Pop(1)
-				break
-			}
-			o.extensions[L.ToString(-1)] = true
-			L.Pop(1)
-		}
-	}
-	L.Pop(1)
-
-	L.GetGlobal("getcover")
-	o.getcover = L.ToBoolean(-1)
-	L.Pop(1)
-
-	L.GetGlobal("gettags")
-	o.gettags = L.ToBoolean(-1)
-	L.Pop(1)
-
-	L.GetGlobal("overwrite")
-	o.overwrite = L.ToBoolean(-1)
-	L.Pop(1)
-
-	L.GetGlobal("prescript")
-	o.prescript = L.ToString(-1)
-	L.Pop(1)
-
-	L.GetGlobal("postscript")
-	o.postscript = L.ToString(-1)
-	L.Pop(1)
-
-	L.GetGlobal("process")
-	o.process = L.ToBoolean(-1)
-	L.Pop(1)
-
-	L.GetGlobal("removesource")
-	o.removesource = L.ToBoolean(-1)
-	L.Pop(1)
-
-	L.GetGlobal("scripts")
-	if L.IsTable(-1) {
-		for i := 1; ; i++ {
-			L.PushInteger(int64(i))
-			L.GetTable(-2)
-			if L.IsNil(-1) {
-				L.Pop(1)
-				break
-			}
-			o.scripts = append(o.scripts, L.ToString(-1))
-			L.Pop(1)
-		}
-	}
-	L.Pop(1)
-
-	return o
+	options = r.(optionSet)
+	return options
 }
