@@ -335,7 +335,10 @@ func newFileRecord(path string) *FileRecord {
 	return &fr
 }
 
-// Return the first existing match from 'list'.
+// findScript returns the path of the first script found with name 'name'.
+// It looks up, by order of precedence ('.' is the current folder):
+//
+//   . > userScriptRoot > systemScriptRoot
 //
 // A script name from the config file can target a file found in current folder.
 // This choice makes it possible to replace a system/user script without
