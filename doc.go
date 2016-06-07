@@ -43,11 +43,11 @@ if the command-line option is set.
 - If a prescript has been specified, it gets executed. It makes it possible to
 adjust the input values and global variables before running the other scripts.
 
-- The scripts get executed in order, if any. The 'output' variable is
-transformed accordingly. Scripts may contain rules such as defining a new file
-name, new tags, new encoding properties, etc. You can use conditions on input
-values to set the output properties, which makes it virtually possible to
-process a full music library in one single run.
+- The scripts, if any, get executed in the lexicographic order of their
+basename. The 'output' variable is transformed accordingly. Scripts may contain
+rules such as defining a new file name, new tags, new encoding properties, etc.
+You can use conditions on input values to set the output properties, which makes
+it virtually possible to process a full music library in one single run.
 
 - If a postscript has been specified, it gets executed. It makes it possible to
 adjust the output of the script for the current run only.
@@ -165,7 +165,7 @@ You can remove a tag by setting it to 'nil' or the empty string. This is
 equivalent, except that 'nil' saves some memory during the process.
 
 
-The 'output' table describes the transformation to apply on the file:
+The 'output' table describes the transformation to apply to the file:
 
 	output = {
 	   path = 'full/path/with.ext',
@@ -192,7 +192,7 @@ For convenience, the following shortcuts are provided:
 
 Functions
 
-Some functions are available to the user to ease scripting.
+Demlo provides some non-standard Lua functions to ease scripting.
 
 	debug(string...)
 Display a message on stderr if debug mode is on.
@@ -222,11 +222,11 @@ up the process.
 
 Preview
 
-The official scripts are usually very smart about guessing the right values.
-They might make mistakes however. If you are unsure, you can (and you are
-advised to) preview the results before proceeding. The preview can be printed in
-JSON format or in a more human-readable format depending on the options.
-
+The official scripts are usually very smart at guessing the right values. They
+might make mistakes however. If you are unsure, you can (and you are advised to)
+preview the results before proceeding. The 'diff' preview is printed to stderr
+but disabled if stderr is redirected. A JSON preview of the changes is printed
+to stdout if stdout is redirected.
 
 
 Internet service
@@ -359,7 +359,7 @@ Files
 User configuration:
 	$XDG_CONFIG_HOME/demlo/demlorc (Default: $HOME/.config/demlo/demlorc)
 This must be a Lua file. See the 'demlorc' file provided with this package for
-some inspiration.
+an exhaustive list of options.
 
 Folder containing the official scripts:
 	$XDG_DATA_DIRS/demlo/scripts (Default: /usr/local/share/demlo/scripts:/usr/share/demlo/scripts)
@@ -382,38 +382,39 @@ quotes.
 Show default options:
 	demlo -h
 
-Preview changes made by default scripts:
-	demlo -g audio.file
+Preview changes made by the default scripts:
+	demlo audio.file
 
 Use 'alternate' script if found in user or system script folder:
 	demlo -s alternate audio.file
 
-Process the designated script file. There must be at slash or it will look up
-in the user or system script folder. If the script is located in current folder,
-simply prepend it with './'. This feature is convenient if you want to write
-scripts that are too complex to fit on the command-line, but not generic enough
-to fit the user/system script folders.
-	demlo -s path/to/local/script audio.file
+Add the Lua file to the list of scripts. This feature is convenient if you want
+to write scripts that are too complex to fit on the command-line, but not
+generic enough to fit the user/system script folders.
+	demlo -s path/to/local/script.lua audio.file
 
-Run the 'case' and 'path' scripts in that specific order:
-	demlo -s 'case' -s 'path' audio.file
+Remove all script from the list, then add '30-case' and '60-path' scripts. Note
+that '30-case' will be run before '60-path'.
+	demlo -r '' -s '60-path' -s '30-case' audio.file
 
-Do not run any script but 'path', the file content is unchanged, and the file
-is renamed to a dynamically computed destination:
-	demlo -s 'filename' audio.file
+Do not use any script but '60-path'. The file content is unchanged and the file
+is renamed to a dynamically computed destination. Demlo performs an instant
+rename if destination is on the same device. Otherwise it copies the file and
+removes the source.
+	demlo -rmsrc -r '' -s '60-path' audio.file
 
-Run default script (if set in configuration file), but do not re-encode:
+Use the default scripts (if set in configuration file), but do not re-encode:
 	demlo -post 'output.format=input.format; output.parameters={"-c:a","copy"}' audio.file
 
-Set 'artist' to be 'composer', and 'title' to be preceded by the new value
-of 'artist', then apply default script. Do not re-encode. Order in runtime
-script matters. Mind the double quotes.
+Set 'artist' to the value of 'composer', and 'title' to be preceded by the new
+value of 'artist', then apply the default script. Do not re-encode. Order in
+runtime script matters. Mind the double quotes.
 	demlo -e 'o.artist=o.composer; o.title=o.artist .. " - " .. o.title' audio.file
 
 Set track number to first number in input file name:
 	demlo -pre 'o.track=input.filename:match([[.*\/\D*(\d*)\D*]])' audio.file
 
-Apply default script but keep original value for the 'artist' tag:
+Use the default scripts but keep original value for the 'artist' tag:
 	demlo -post 'o.artist=i.artist' audio.file
 
 1) Preview default scripts transformation and save it to an index. 2) Edit file
@@ -421,13 +422,16 @@ to fix any potential mistake. 3) Run Demlo over the same files using the index
 information only.
 
 	demlo *.wv >> index
-	## Edit index as needed
-	demlo -p -i index -s '' *.wv
+	## Oops! Forgot some files:
+	demlo *.flac >> index
+	## Edit index as needed...
+	demlo -p -i index -r '' *.wv
 
-Same as above but generate output filename according to the 'rename' script.
-If you perform some manual changes after a script is run, filename is not
-changed dynamically.
-	demlo -i index -s rename *.wv
+Same as above but generate output filename according to the custom '61-rename'
+script. The numeric prefix is important: it ensures that '61-rename' will be run
+after all the default tag related scripts and after '60-path'. Otherwise, if a
+change in tags would occur later on, it would not affect the renaming script.
+	demlo -i index -s 61-rename *.wv
 
 Retrieve tags from Internet:
 	demlo -t audio.file
@@ -435,17 +439,18 @@ Retrieve tags from Internet:
 Same as above but for a whole album, and saving the result in an index:
 	demlo -t album/*.ogg > album-index.json
 
-Download cover for the album corresponding to the track (use -rmsrc to avoid
-duplicating the audio file):
-	demlo -rmsrc -c -s 'cover' album/track
+Download cover for the album corresponding to the track. Use -rmsrc to avoid
+duplicating the audio file.
+	demlo -rmsrc -c -s '70-cover' album/track
 
 Change tags inplace with entries from MusicBrainz:
-	demlo -t -s '' album/*
+	demlo -t -r '' album/*
 
 Set tags to titlecase while casing AC-DC correctly:
-	demlo -pre 'const={"AC-DC"}' -s case audio.file
+	demlo -pre 'const={"AC-DC"}' -s 30-case audio.file
 
-To easily switch between formats from command-line, create one script per format (see encoding.lua), e.g. ogg.lua and flac.lua. Then
+To easily switch between formats from command-line, create one script per format
+(see 50-encoding.lua), e.g. ogg.lua and flac.lua. Then
 	demlo -s flac -s ... audio.file
 	demlo -s ogg -s ... audio.file
 
