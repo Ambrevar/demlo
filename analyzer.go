@@ -144,7 +144,10 @@ func (a *analyzer) Run(fr *FileRecord) error {
 
 	fr.output = make([]outputInfo, input.trackCount)
 	for track := 0; track < input.trackCount; track++ {
-		a.RunAllScripts(fr, track, defaultTags)
+		err := a.RunAllScripts(fr, track, defaultTags)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Preview changes.
@@ -171,7 +174,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 	return nil
 }
 
-func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[string]string) {
+func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[string]string) error {
 	input := &fr.input
 	output := &fr.output[track]
 
@@ -201,8 +204,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		err := RunScript(a.L, script.path, input, output)
 		if err != nil {
 			fr.Error.Printf("Script %s: %s", StripExt(filepath.Base(script.path)), err)
-			// TODO: Abort on error.
-			continue
+			return err
 		}
 	}
 
@@ -235,6 +237,8 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 			delete(output.Tags, tag)
 		}
 	}
+
+	return nil
 }
 
 func prepareTags(fr *FileRecord) {
