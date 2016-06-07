@@ -526,7 +526,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		// additional cost. In case several tracks match, use fuzzy string matching
 		// on title, artist and track.
 		var matches []RecordingID
-		inputDurationFloat, _ := strconv.ParseFloat(input.Format.Duration, 64)
+		inputDurationFloat, _ := strconv.ParseFloat(fr.Format.Duration, 64)
 		inputDuration := int(inputDurationFloat * 1000)
 
 		title := stringNorm(input.tags["title"])

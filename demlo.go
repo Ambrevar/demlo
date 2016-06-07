@@ -222,48 +222,32 @@ type outputCover struct {
 	Parameters []string `lua:"parameters"`
 }
 
-// TODO: Export all fields? Probably not a good idea: if FFprobe output changes,
-// it could lead to undesired field overwriting.
-// TODO: We cannot create an 'input struct' if we want all entries. However we
-// can use a struct to unmarshal easily to known types. So we can use 2
-// unmarshals: one to a struct for processing, one to an interface{} to pass to
-// Lua.
+// inputInfo is contains all the file's metadata passed to the scripts.
+// Format and Streams are set from FFprobe respective sections.
+// We do not export other fields: if FFprobe output changes, it could lead to
+// undesired field overwriting.
 type inputInfo struct {
 	path    string // Realpath.
 	bitrate int    // In bytes per second.
 	tags    map[string]string
 
-	embeddedCovers []inputCover
-	externalCovers map[string]inputCover
-	onlineCover    inputCover
+	embeddedCovers []inputCover          `lua:"embeddedcovers"`
+	externalCovers map[string]inputCover `lua:"externalcovers"`
+	onlineCover    inputCover            `lua:"onlinecover"`
 
 	// Index of the first audio stream.
 	audioIndex int
 
 	// FFmpeg data.
-	Streams []struct {
-		Bitrate   string `json:"bit_rate"`
-		CodecName string `json:"codec_name"`
-		CodecType string `json:"codec_type"`
-		Duration  string
-		Height    int
-		Tags      map[string]string
-		Width     int
-	}
-	Format struct {
-		Bitrate    string `json:"bit_rate"`
-		Duration   string
-		FormatName string `json:"format_name"`
-		NbStreams  int    `json:"nb_streams"`
-		Tags       map[string]string
-	}
+	Format  map[string]interface{}   `lua:"format"`
+	Streams []map[string]interface{} `lua:"streams"`
 
 	// The following details for multi-track files are not transferred to Lua.
 	filetags map[string]string
 	cuesheet cuesheet.Cuesheet
 	// Name of the matching file in the cuesheet.
-	cuesheetFile string
-	trackCount   int
+	cuesheetFile string `lua:"cuesheetfile"`
+	trackCount   int    `lua:"trackcount"`
 }
 
 // We could store everything in 'parameters', but having a separate 'path' and
@@ -279,14 +263,39 @@ type outputInfo struct {
 }
 
 // FileRecord holds the data passed through the pipeline.
-// It contains, for one file, the input metadata, the output changes, some cache, and the logger.
+// It contains, for one file, the input metadata and the output changes from the
+// scripts. FFprobe's Format and Streams are fully stored in 'input' as
+// interfaces that can be accessed directly from the script.
+// It also contains:
+// - Some file specific cache.
+// - File specific loggers. (To guarantee the log messages won't be split.)
+// - The needed bit of the 'Format' and 'Streams' sections from FFprobe,
+//   unwrapped from any interface and thus properly typed.
 type FileRecord struct {
 	input  inputInfo
 	output []outputInfo
 
+	Format struct {
+		Bitrate    string `json:"bit_rate"`
+		Duration   string
+		FormatName string `json:"format_name"`
+		NbStreams  int    `json:"nb_streams"`
+		Tags       map[string]string
+	}
+	Streams []struct {
+		Bitrate   string `json:"bit_rate"`
+		CodecName string `json:"codec_name"`
+		CodecType string `json:"codec_type"`
+		Duration  string
+		Height    int
+		Tags      map[string]string
+		Width     int
+	}
+
 	embeddedCoverCache [][]byte
 	onlineCoverCache   []byte
 
+	// TODO: Do not export?
 	Debug   *log.Logger
 	Info    *log.Logger
 	Output  *log.Logger

@@ -65,7 +65,7 @@ func (t *transformer) Run(fr *FileRecord) error {
 			encodingChanged = true
 		}
 
-		if input.Format.FormatName != output.Format {
+		if fr.Format.FormatName != output.Format {
 			encodingChanged = true
 		}
 
@@ -115,23 +115,23 @@ func transformStream(fr *FileRecord, track int) error {
 
 	// Get cuesheet splitting parameters.
 	if len(input.cuesheet.Files) > 0 {
-		d, _ := strconv.ParseFloat(input.Streams[input.audioIndex].Duration, 64)
+		d, _ := strconv.ParseFloat(fr.Streams[input.audioIndex].Duration, 64)
 		start, duration := ffmpegSplitTimes(input.cuesheet, input.cuesheetFile, track, d)
 		ffmpegParameters = append(ffmpegParameters, "-ss", start, "-t", duration)
 	}
 
 	// If there are no covers, do not copy any video stream to avoid errors.
-	if input.Format.NbStreams < 2 {
+	if fr.Format.NbStreams < 2 {
 		ffmpegParameters = append(ffmpegParameters, "-vn")
 	}
 
 	// Remove non-cover streams and extra audio streams.
 	// Must add all streams first.
 	ffmpegParameters = append(ffmpegParameters, "-map", "0")
-	for i := 0; i < input.Format.NbStreams; i++ {
-		if (input.Streams[i].CodecType == "video" && input.Streams[i].CodecName != "image2" && input.Streams[i].CodecName != "png" && input.Streams[i].CodecName != "mjpeg") ||
-			(input.Streams[i].CodecType == "audio" && i > input.audioIndex) ||
-			(input.Streams[i].CodecType != "audio" && input.Streams[i].CodecType != "video") {
+	for i := 0; i < fr.Format.NbStreams; i++ {
+		if (fr.Streams[i].CodecType == "video" && fr.Streams[i].CodecName != "image2" && fr.Streams[i].CodecName != "png" && fr.Streams[i].CodecName != "mjpeg") ||
+			(fr.Streams[i].CodecType == "audio" && i > input.audioIndex) ||
+			(fr.Streams[i].CodecType != "audio" && fr.Streams[i].CodecType != "video") {
 			ffmpegParameters = append(ffmpegParameters, "-map", "-0:"+strconv.Itoa(i))
 		}
 	}

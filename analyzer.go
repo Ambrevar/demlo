@@ -84,10 +84,15 @@ func (a *analyzer) Run(fr *FileRecord) error {
 		fr.Error.Print(err)
 		return err
 	}
+	err = json.Unmarshal(out, &fr)
+	if err != nil {
+		fr.Error.Print(err)
+		return err
+	}
 
 	// Index of the first audio stream.
 	input.audioIndex = -1
-	for k, v := range input.Streams {
+	for k, v := range fr.Streams {
 		if v.CodecType == "audio" {
 			input.audioIndex = k
 			break
@@ -103,9 +108,9 @@ func (a *analyzer) Run(fr *FileRecord) error {
 	// 'streams[audioIndex].bit_rate' is empty (e.g. in APE files), look for
 	// 'format.bit_rate'. To ease querying bitrate from user scripts, store it
 	// in 'input.bitrate'.
-	input.bitrate, err = strconv.Atoi(input.Streams[input.audioIndex].Bitrate)
+	input.bitrate, err = strconv.Atoi(fr.Streams[input.audioIndex].Bitrate)
 	if err != nil {
-		input.bitrate, err = strconv.Atoi(input.Format.Bitrate)
+		input.bitrate, err = strconv.Atoi(fr.Format.Bitrate)
 		if err != nil {
 			fr.Warning.Print("Cannot get bitrate from", input.path)
 			return err
@@ -195,7 +200,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		}
 
 		// Default codec options.
-		output.Format = input.Format.FormatName
+		output.Format = fr.Format.FormatName
 	}
 
 	// Create a Lua sandbox containing input and output, then run scripts.
@@ -215,7 +220,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	// -Remove empty tags to avoid storing empty strings in FFmpeg.
 
 	if output.Format == "" {
-		output.Format = input.Format.FormatName
+		output.Format = fr.Format.FormatName
 	}
 
 	if len(output.Parameters) == 0 {
@@ -247,10 +252,10 @@ func prepareTags(fr *FileRecord) {
 	input.filetags = make(map[string]string)
 
 	// Precedence: cuesheet > stream tags > format tags.
-	for k, v := range input.Format.Tags {
+	for k, v := range fr.Format.Tags {
 		input.filetags[strings.ToLower(k)] = v
 	}
-	for k, v := range input.Streams[input.audioIndex].Tags {
+	for k, v := range fr.Streams[input.audioIndex].Tags {
 		key := strings.ToLower(k)
 		_, ok := input.filetags[key]
 		if !ok || input.filetags[key] == "" {
@@ -330,10 +335,10 @@ func getEmbeddedCover(fr *FileRecord) {
 	input := &fr.input
 
 	// FFmpeg treats embedded covers like video streams.
-	for i := 0; i < input.Format.NbStreams; i++ {
-		if input.Streams[i].CodecName != "image2" &&
-			input.Streams[i].CodecName != "png" &&
-			input.Streams[i].CodecName != "mjpeg" {
+	for i := 0; i < fr.Format.NbStreams; i++ {
+		if fr.Streams[i].CodecName != "image2" &&
+			fr.Streams[i].CodecName != "png" &&
+			fr.Streams[i].CodecName != "mjpeg" {
 			continue
 		}
 
@@ -558,7 +563,7 @@ func preview(fr *FileRecord, track int) {
 		valueMaxlen, "",
 		attrMaxlen, "FILE")
 	prettyPrint(fr, "path", input.path, output.Path, attrMaxlen, valueMaxlen)
-	prettyPrint(fr, "format", input.Format.FormatName, output.Format, attrMaxlen, valueMaxlen)
+	prettyPrint(fr, "format", fr.Format.FormatName, output.Format, attrMaxlen, valueMaxlen)
 	prettyPrint(fr, "parameters", "bitrate="+strconv.Itoa(input.bitrate), fmt.Sprintf("%v", output.Parameters), attrMaxlen, valueMaxlen)
 
 	fr.Output.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
