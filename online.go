@@ -304,7 +304,7 @@ func queryAcoustID(fr *FileRecord, meta acoustid.Meta, duration int) (recordingI
 				// In case of tie, position has more weight than year and duration.
 				score := (26*relTitle + 25*relArtist + 13*relAlbumArtist + 13*relAlbum + 9*relPosition + 7*relYear + 7*relDuration) / 100
 
-				fr.Debug.Printf(`Score: %.4g
+				fr.debug.Printf(`Score: %.4g
 %-12s %-7.4g [%v]
 %-12s %-7.4g [%v]
 %-12s %-7.4g [%v]
@@ -321,7 +321,7 @@ Disc %v, Track %v, TrackCount %v: %.4g
 					dbgMedium, dbgTrack, dbgTrackCount, relPosition)
 
 				if score > scoreMax {
-					fr.Debug.Printf("New max score: %-7.4g\n", score)
+					fr.debug.Printf("New max score: %-7.4g\n", score)
 					scoreMax = score
 					releaseID = ReleaseID(acoustRelease.ID)
 					recordingID = RecordingID(acoustRecording.ID)
@@ -462,7 +462,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 	var recordingID RecordingID
 
 	releaseID, albumKey := queryIndex(input)
-	fr.Debug.Printf("Album cache Key: %q\n", albumKey)
+	fr.debug.Printf("Album cache Key: %q\n", albumKey)
 
 	tagsCache.RLock()
 	tags, ok := tagsCache.v[releaseID]
@@ -516,7 +516,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		return releaseID, nil, errors.New("unidentifiable album")
 	}
 
-	fr.Debug.Print("Release ID: ", releaseID)
+	fr.debug.Print("Release ID: ", releaseID)
 
 	if recordingID == "" {
 		// Lookup recording in cache. Needed when acoustID was not called.
@@ -577,7 +577,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		return releaseID, nil, errors.New("recording ID absent from cache")
 	}
 
-	fr.Debug.Print("Recording ID: ", recordingID)
+	fr.debug.Print("Recording ID: ", recordingID)
 
 	// At this point, 'release' and 'recording' must be properly set.
 	var result map[string]string

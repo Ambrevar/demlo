@@ -32,7 +32,7 @@ func (t *transformer) Run(fr *FileRecord) error {
 
 		err := os.MkdirAll(filepath.Dir(output.Path), 0777)
 		if err != nil {
-			fr.Error.Print(err)
+			fr.error.Print(err)
 			return err
 		}
 
@@ -154,12 +154,12 @@ func transformStream(fr *FileRecord, track int) error {
 	// necessary.
 	dst, isInplace, err := makeTrackDst(output.Path, input.path, false)
 	if err != nil {
-		fr.Error.Print(err)
+		fr.error.Print(err)
 		return err
 	}
 	ffmpegParameters = append(ffmpegParameters, dst)
 
-	fr.Debug.Printf("Audio %v parameters: %q", track, ffmpegParameters)
+	fr.debug.Printf("Audio %v parameters: %q", track, ffmpegParameters)
 
 	cmd := exec.Command("ffmpeg", ffmpegParameters...)
 	var stderr bytes.Buffer
@@ -167,24 +167,24 @@ func transformStream(fr *FileRecord, track int) error {
 
 	err = cmd.Run()
 	if err != nil {
-		fr.Error.Printf(stderr.String())
+		fr.error.Printf(stderr.String())
 		return err
 	}
 
 	if options.Removesource {
 		if err != nil {
-			fr.Error.Print(err)
+			fr.error.Print(err)
 			return err
 		}
 		if isInplace {
 			err = os.Rename(dst, input.path)
 			if err != nil {
-				fr.Error.Print(err)
+				fr.error.Print(err)
 			}
 		} else {
 			err = os.Remove(input.path)
 			if err != nil {
-				fr.Error.Print(err)
+				fr.error.Print(err)
 			}
 		}
 	}
@@ -198,7 +198,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 
 	dst, isInplace, err := makeTrackDst(output.Path, input.path, options.Removesource)
 	if err != nil {
-		fr.Error.Print(err)
+		fr.error.Print(err)
 		return err
 	}
 
@@ -212,13 +212,13 @@ func transformMetadata(fr *FileRecord, track int) error {
 			// destination. We try to copy instead.
 			err := CopyFile(dst, input.path)
 			if err != nil {
-				fr.Error.Println(err)
+				fr.error.Println(err)
 				return err
 			}
 			if options.Removesource {
 				err = os.Remove(input.path)
 				if err != nil {
-					fr.Error.Println(err)
+					fr.error.Println(err)
 				}
 			}
 		}
@@ -245,7 +245,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 		// TODO: Can TagLib remove extra tags?
 		f, err := taglib.Read(dst)
 		if err != nil {
-			fr.Error.Print(err)
+			fr.error.Print(err)
 			return err
 		}
 		defer f.Close()
@@ -281,7 +281,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 
 		err = f.Save()
 		if err != nil {
-			fr.Error.Print(err)
+			fr.error.Print(err)
 		}
 	}
 	return nil
@@ -432,7 +432,7 @@ func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSo
 	if len(cover.Parameters) == 0 || cover.Format == "" {
 		cover.Path, err = makeCoverDst(fr, cover.Path, fr.input.path, checksum)
 		if err != nil {
-			fr.Error.Print(err)
+			fr.error.Print(err)
 			return
 		}
 		if cover.Path == "" {
@@ -442,12 +442,12 @@ func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSo
 
 		fd, err := os.OpenFile(cover.Path, os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
-			fr.Warning.Println(err)
+			fr.warning.Println(err)
 			return
 		}
 
 		if _, err = io.Copy(fd, inputSource); err != nil {
-			fr.Warning.Println(err)
+			fr.warning.Println(err)
 			return
 		}
 		fd.Close()
@@ -455,7 +455,7 @@ func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSo
 	} else {
 		cover.Path, err = makeCoverDst(fr, cover.Path, fr.input.path, checksum)
 		if err != nil {
-			fr.Error.Print(err)
+			fr.error.Print(err)
 			return
 		}
 		if cover.Path == "" {
@@ -467,7 +467,7 @@ func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSo
 		cmdArray = append(cmdArray, cover.Parameters...)
 		cmdArray = append(cmdArray, "-f", cover.Format, cover.Path)
 
-		fr.Debug.Printf("Cover %v parameters: %q", coverName, cmdArray)
+		fr.debug.Printf("Cover %v parameters: %q", coverName, cmdArray)
 
 		cmd := exec.Command("ffmpeg", cmdArray...)
 		var stderr bytes.Buffer
@@ -476,7 +476,7 @@ func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSo
 
 		_, err := cmd.Output()
 		if err != nil {
-			fr.Warning.Printf(stderr.String())
+			fr.warning.Printf(stderr.String())
 			return
 		}
 	}

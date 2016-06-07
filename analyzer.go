@@ -64,7 +64,7 @@ func (a *analyzer) Close() {
 }
 
 func (a *analyzer) Run(fr *FileRecord) error {
-	fr.Section.Println(fr.input.path)
+	fr.section.Println(fr.input.path)
 
 	cmd := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", "-show_format", fr.input.path)
 	var stderr bytes.Buffer
@@ -72,7 +72,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 
 	out, err := cmd.Output()
 	if err != nil {
-		fr.Error.Print("ffprobe: ", stderr.String())
+		fr.error.Print("ffprobe: ", stderr.String())
 		return err
 	}
 
@@ -81,12 +81,12 @@ func (a *analyzer) Run(fr *FileRecord) error {
 
 	err = json.Unmarshal(out, &input)
 	if err != nil {
-		fr.Error.Print(err)
+		fr.error.Print(err)
 		return err
 	}
 	err = json.Unmarshal(out, &fr)
 	if err != nil {
-		fr.Error.Print(err)
+		fr.error.Print(err)
 		return err
 	}
 
@@ -99,7 +99,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 		}
 	}
 	if input.audioIndex == -1 {
-		fr.Warning.Print("Non-audio file:", input.path)
+		fr.warning.Print("Non-audio file:", input.path)
 		return errNonAudio
 	}
 
@@ -112,7 +112,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 	if err != nil {
 		input.bitrate, err = strconv.Atoi(fr.Format.Bitrate)
 		if err != nil {
-			fr.Warning.Print("Cannot get bitrate from", input.path)
+			fr.warning.Print("Cannot get bitrate from", input.path)
 			return err
 		}
 	}
@@ -122,7 +122,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 
 	err = getExternalCover(fr)
 	if err != nil {
-		fr.Warning.Print(err)
+		fr.warning.Print(err)
 		return err
 	}
 
@@ -136,13 +136,13 @@ func (a *analyzer) Run(fr *FileRecord) error {
 		if options.Gettags {
 			releaseID, defaultTags, err = getOnlineTags(fr)
 			if err != nil {
-				fr.Debug.Print("Online tags query error: ", err)
+				fr.debug.Print("Online tags query error: ", err)
 			}
 		}
 		if options.Getcover {
 			fr.onlineCoverCache, input.onlineCover, err = getOnlineCover(fr, releaseID)
 			if err != nil {
-				fr.Debug.Print("Online cover query error: ", err)
+				fr.debug.Print("Online cover query error: ", err)
 			}
 		}
 	}
@@ -162,7 +162,7 @@ func (a *analyzer) Run(fr *FileRecord) error {
 			// Warn for existence.
 			_, err = os.Stat(fr.output[track].Path)
 			if err == nil || !os.IsNotExist(err) {
-				fr.Warning.Println("Destination exists:", fr.output[track].Path)
+				fr.warning.Println("Destination exists:", fr.output[track].Path)
 			}
 		}
 	}
@@ -208,7 +208,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	for _, script := range cache.scripts {
 		err := RunScript(a.L, script.path, input, output)
 		if err != nil {
-			fr.Error.Printf("Script %s: %s", StripExt(filepath.Base(script.path)), err)
+			fr.error.Printf("Script %s: %s", StripExt(filepath.Base(script.path)), err)
 			return err
 		}
 	}
@@ -234,7 +234,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	var err error
 	output.Path, err = filepath.Abs(output.Path)
 	if err != nil {
-		fr.Warning.Print("Cannot get absolute path:", err)
+		fr.warning.Print("Cannot get absolute path:", err)
 	}
 
 	for tag, value := range output.Tags {
@@ -279,12 +279,12 @@ func prepareTags(fr *FileRecord) {
 				continue
 			}
 			if st.Size() > cuesheetMaxsize {
-				fr.Warning.Printf("Cuesheet size %v > %v bytes, skipping", cs, cuesheetMaxsize)
+				fr.warning.Printf("Cuesheet size %v > %v bytes, skipping", cs, cuesheetMaxsize)
 				continue
 			}
 			buf, err := ioutil.ReadFile(cs)
 			if err != nil {
-				fr.Warning.Print(err)
+				fr.warning.Print(err)
 				continue
 			}
 
@@ -348,14 +348,14 @@ func getEmbeddedCover(fr *FileRecord) {
 
 		cover, err := cmd.Output()
 		if err != nil {
-			fr.Error.Printf(stderr.String())
+			fr.error.Printf(stderr.String())
 			continue
 		}
 
 		reader := bytes.NewBuffer(cover)
 		config, format, err := image.DecodeConfig(reader)
 		if err != nil {
-			fr.Warning.Print(err)
+			fr.warning.Print(err)
 			continue
 		}
 
@@ -391,20 +391,20 @@ func getExternalCover(fr *FileRecord) error {
 		}
 		fd, err := os.Open(filepath.Join(filepath.Dir(input.path), f))
 		if err != nil {
-			fr.Warning.Print(err)
+			fr.warning.Print(err)
 			continue
 		}
 		defer fd.Close()
 
 		st, err := fd.Stat()
 		if err != nil {
-			fr.Warning.Print(err)
+			fr.warning.Print(err)
 			continue
 		}
 
 		config, format, err := image.DecodeConfig(fd)
 		if err != nil {
-			fr.Warning.Print(err)
+			fr.warning.Print(err)
 			continue
 		}
 
@@ -416,7 +416,7 @@ func getExternalCover(fr *FileRecord) error {
 		buf := [coverChecksumBlock]byte{}
 		_, err = (*fd).ReadAt(buf[:hi], 0)
 		if err != nil && err != io.EOF {
-			fr.Warning.Print(err)
+			fr.warning.Print(err)
 			continue
 		}
 		checksum := fmt.Sprintf("%x", md5.Sum(buf[:hi]))
@@ -472,7 +472,7 @@ func prettyPrint(fr *FileRecord, attr, input, output string, attrMaxlen, valueMa
 	}
 
 	// Print first line with title.
-	fr.Output.Printf(
+	fr.plain.Printf(
 		"%*v["+ansi.Color("%.*s", colorIn)+"] | %-*v | ["+ansi.Color("%.*s", colorOut)+"]\n",
 		valueMaxlen-min(valueMaxlen, len(in)), "",
 		valueMaxlen, input,
@@ -495,7 +495,7 @@ func prettyPrint(fr *FileRecord, attr, input, output string, attrMaxlen, valueMa
 			outDelimLeft, outDelimRight = "", ""
 		}
 
-		fr.Output.Printf(
+		fr.plain.Printf(
 			"%s"+ansi.Color("%s", colorIn)+"%s%*v | %*v | %s"+ansi.Color("%s", colorOut)+"%s\n",
 			inDelimLeft,
 			string(in[inLo:inHi]),
@@ -557,16 +557,16 @@ func preview(fr *FileRecord, track int) {
 		colorTitle = "white+b"
 	}
 
-	fr.Output.Println()
+	fr.plain.Println()
 
-	fr.Output.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
+	fr.plain.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
 		valueMaxlen, "",
 		attrMaxlen, "FILE")
 	prettyPrint(fr, "path", input.path, output.Path, attrMaxlen, valueMaxlen)
 	prettyPrint(fr, "format", fr.Format.FormatName, output.Format, attrMaxlen, valueMaxlen)
 	prettyPrint(fr, "parameters", "bitrate="+strconv.Itoa(input.bitrate), fmt.Sprintf("%v", output.Parameters), attrMaxlen, valueMaxlen)
 
-	fr.Output.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
+	fr.plain.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
 		valueMaxlen, "",
 		attrMaxlen, "TAGS")
 	for _, v := range tagList {
@@ -576,7 +576,7 @@ func preview(fr *FileRecord, track int) {
 		}
 	}
 
-	fr.Output.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
+	fr.plain.Printf("%*v === "+ansi.Color("%-*v", colorTitle)+" ===\n",
 		valueMaxlen, "",
 		attrMaxlen, "COVERS")
 	for stream, cover := range input.embeddedCovers {
@@ -599,5 +599,5 @@ func preview(fr *FileRecord, track int) {
 		prettyPrint(fr, "online", in, out, attrMaxlen, valueMaxlen)
 	}
 
-	fr.Output.Println()
+	fr.plain.Println()
 }

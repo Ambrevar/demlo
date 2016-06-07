@@ -295,13 +295,12 @@ type FileRecord struct {
 	embeddedCoverCache [][]byte
 	onlineCoverCache   []byte
 
-	// TODO: Do not export?
-	Debug   *log.Logger
-	Info    *log.Logger
-	Output  *log.Logger
-	Section *log.Logger
-	Warning *log.Logger
-	Error   *log.Logger
+	debug   *log.Logger
+	info    *log.Logger
+	plain   *log.Logger
+	section *log.Logger
+	warning *log.Logger
+	error   *log.Logger
 
 	logBuf bytes.Buffer
 }
@@ -314,23 +313,23 @@ func newFileRecord(path string) *FileRecord {
 	fr := FileRecord{}
 	fr.input.path = path
 
-	fr.Debug = log.New(ioutil.Discard, "@@ ", 0)
-	fr.Info = log.New(&fr.logBuf, ":: ", 0)
-	fr.Output = log.New(&fr.logBuf, "", 0)
-	fr.Section = log.New(&fr.logBuf, "==> ", 0)
-	fr.Warning = log.New(&fr.logBuf, ":: Warning: ", 0)
-	fr.Error = log.New(&fr.logBuf, ":: Error: ", 0)
+	fr.debug = log.New(ioutil.Discard, "@@ ", 0)
+	fr.info = log.New(&fr.logBuf, ":: ", 0)
+	fr.plain = log.New(&fr.logBuf, "", 0)
+	fr.section = log.New(&fr.logBuf, "==> ", 0)
+	fr.warning = log.New(&fr.logBuf, ":: Warning: ", 0)
+	fr.error = log.New(&fr.logBuf, ":: Error: ", 0)
 
 	if options.Debug {
-		fr.Debug.SetOutput(&fr.logBuf)
+		fr.debug.SetOutput(&fr.logBuf)
 	}
 
 	if options.Color {
-		fr.Debug.SetPrefix(ansi.Color(fr.Debug.Prefix(), "cyan+b"))
-		fr.Info.SetPrefix(ansi.Color(fr.Info.Prefix(), "magenta+b"))
-		fr.Section.SetPrefix(ansi.Color(fr.Section.Prefix(), "green+b"))
-		fr.Warning.SetPrefix(ansi.Color(fr.Warning.Prefix(), "yellow+b"))
-		fr.Error.SetPrefix(ansi.Color(fr.Error.Prefix(), "red+b"))
+		fr.debug.SetPrefix(ansi.Color(fr.debug.Prefix(), "cyan+b"))
+		fr.info.SetPrefix(ansi.Color(fr.info.Prefix(), "magenta+b"))
+		fr.section.SetPrefix(ansi.Color(fr.section.Prefix(), "green+b"))
+		fr.warning.SetPrefix(ansi.Color(fr.warning.Prefix(), "yellow+b"))
+		fr.error.SetPrefix(ansi.Color(fr.error.Prefix(), "red+b"))
 	}
 
 	return &fr
@@ -513,7 +512,7 @@ func main() {
 	}
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "\nUsage: %v [OPTIONS] FILES|FOLDERS\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %v [OPTIONS] FILES|FOLDERS\n\n", os.Args[0])
 		fmt.Fprintln(os.Stderr, usage)
 		fmt.Fprintln(os.Stderr, "Options:")
 		flag.PrintDefaults()
