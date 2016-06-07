@@ -77,8 +77,6 @@ var (
 
 	coverExtList = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
 
-	options = optionSet{}
-
 	previewOptions = struct {
 		printIndex bool
 		printDiff  bool
@@ -97,31 +95,30 @@ var (
 	}{v: map[dstCoverKey]bool{}}
 
 	errInputFile = errors.New("Cannot process input file")
+
+	// Options used in the config file and/or as CLI flags.
+	// Precedence: flags > config > defaults.
+	// Exception: extensions specified in flags are merged with config extensions.
+	options = struct {
+		Color        bool
+		Cores        int
+		Debug        bool
+		Extensions   stringSetFlag
+		Getcover     bool
+		Gettags      bool
+		Index        string
+		Postscript   string
+		Prescript    string
+		Process      bool
+		Removesource bool
+		Scripts      []string
+	}{}
 )
 
 // Identify visited cover files with {path,checksum} as map key.
 type dstCoverKey struct {
 	path     string
 	checksum string
-}
-
-// Options used in the config file and/or as CLI flags.
-// TODO: Can we use an anonymous structure?
-// Precedence: flags > config > defaults.
-// Exception: extensions specified in flags are merged with config extensions.
-type optionSet struct {
-	Color        bool
-	Cores        int
-	Debug        bool
-	Extensions   stringSetFlag
-	Getcover     bool
-	Gettags      bool
-	Index        string
-	Postscript   string
-	Prescript    string
-	Process      bool
-	Removesource bool
-	Scripts      []string
 }
 
 // scriptBuffer holds a script in memory.
@@ -496,7 +493,7 @@ func main() {
 	st, err := os.Stat(config)
 	if err == nil && st.Mode().IsRegular() {
 		log.Printf("Load config: %v", config)
-		options = LoadConfig(config)
+		LoadConfig(config, &options)
 	}
 	if options.Extensions == nil {
 		// Defaults: Init here so that unspecified config options get properly set.

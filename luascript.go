@@ -206,7 +206,7 @@ func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo
 	return nil
 }
 
-func LoadConfig(config string) (options optionSet) {
+func LoadConfig(config string, options interface{}) {
 	L, err := MakeSandbox(log.Println)
 	defer L.Close()
 
@@ -219,6 +219,6 @@ func LoadConfig(config string) (options optionSet) {
 	r := luar.LuaToGo(L, reflect.TypeOf(options), -1)
 	L.Pop(1)
 
-	options = r.(optionSet)
-	return options
+	v := reflect.ValueOf(options)
+	v.Elem().Set(reflect.ValueOf(r).Elem())
 }
