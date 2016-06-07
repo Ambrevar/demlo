@@ -218,9 +218,9 @@ type inputCover struct {
 }
 
 type outputCover struct {
-	Path       string
-	Format     string
-	Parameters []string
+	Path       string   `lua:"path"`
+	Format     string   `lua:"format"`
+	Parameters []string `lua:"parameters"`
 }
 
 // TODO: Export all fields? Probably not a good idea: if FFprobe output changes,
@@ -270,13 +270,13 @@ type inputInfo struct {
 // We could store everything in 'parameters', but having a separate 'path' and
 // 'format' allows for foolproofing.
 type outputInfo struct {
-	Path           string
-	Format         string
-	Parameters     []string
-	Tags           map[string]string
-	EmbeddedCovers []outputCover
-	ExternalCovers map[string]outputCover
-	OnlineCover    outputCover
+	Path           string                 `lua:"path"`
+	Format         string                 `lua:"format"`
+	Parameters     []string               `lua:"parameters"`
+	Tags           map[string]string      `lua:"tags"`
+	EmbeddedCovers []outputCover          `lua:"embeddedcovers"`
+	ExternalCovers map[string]outputCover `lua:"externalcovers"`
+	OnlineCover    outputCover            `lua:"onlinecover"`
 }
 
 // FileRecord holds the data passed through the pipeline.
