@@ -26,7 +26,7 @@ import (
 	"github.com/mgutz/ansi"
 )
 
-var errNonAudio = errors.New("Non-audio file")
+var errNonAudio = errors.New("non-audio file")
 var stdoutMutex sync.Mutex
 
 // analyzer loads file metadata into the file record, run the scripts and preview the result.

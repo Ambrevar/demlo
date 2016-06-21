@@ -94,7 +94,7 @@ var (
 		sync.RWMutex
 	}{v: map[dstCoverKey]bool{}}
 
-	errInputFile = errors.New("Cannot process input file")
+	errInputFile = errors.New("cannot process input file")
 
 	// Options used in the config file and/or as CLI flags.
 	// Precedence: flags > config > defaults.
@@ -356,7 +356,7 @@ func findScript(name string) (path string, st os.FileInfo, err error) {
 			return path, st, nil
 		}
 	}
-	return "", nil, errors.New("Script not found")
+	return "", nil, errors.New("script not found")
 }
 
 func printExtensions() {
