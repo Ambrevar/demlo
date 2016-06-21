@@ -42,7 +42,7 @@ func NewPipeline(inputQueueSize, logQueueSize int) *Pipeline {
 	p.logWg.Add(1)
 	go func() {
 		for fr := range p.log {
-			fmt.Fprintln(os.Stderr, fr)
+			fmt.Fprint(os.Stderr, fr)
 		}
 		p.logWg.Done()
 	}()
