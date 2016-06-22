@@ -69,7 +69,7 @@ func (p *Pipeline) Add(NewStage func() Stage, routineCount int) {
 
 	wg.Add(routineCount)
 	for i := 0; i < routineCount; i++ {
-		go func(input chan *FileRecord) {
+		go func(input <-chan *FileRecord) {
 			s := NewStage()
 			s.Init()
 			for fr := range input {
