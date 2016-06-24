@@ -30,7 +30,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 
 	"bitbucket.org/ambrevar/demlo/cuesheet"
 	"github.com/mgutz/ansi"
@@ -75,8 +74,6 @@ var (
 
 	warning = log.New(os.Stderr, ":: Warning: ", 0)
 
-	coverExtList = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
-
 	previewOptions = struct {
 		printIndex bool
 		printDiff  bool
@@ -86,15 +83,6 @@ var (
 		index   map[string][]outputInfo
 		scripts []scriptBuffer
 	}{}
-
-	rePrintable = regexp.MustCompile(`\pC`)
-
-	visitedDstCovers = struct {
-		v map[dstCoverKey]bool
-		sync.RWMutex
-	}{v: map[dstCoverKey]bool{}}
-
-	errInputFile = errors.New("cannot process input file")
 
 	// Options used in the config file and/or as CLI flags.
 	// Precedence: flags > config > defaults.

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/yookoala/realpath"
 )
+
+var errInputFile = errors.New("cannot process input file")
 
 // walker feeds the output channel with files.
 // Duplicates are discarded.

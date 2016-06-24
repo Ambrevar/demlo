@@ -9,10 +9,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"github.com/wtolson/go-taglib"
 	"github.com/yookoala/realpath"
 )
+
+var visitedDstCovers = struct {
+	v map[dstCoverKey]bool
+	sync.RWMutex
+}{v: map[dstCoverKey]bool{}}
 
 // transformer applies the changes resulting from the script run.
 // If the audio stream needs to be transcoded, it calls FFmpeg to apply all the changes.

@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,8 +27,12 @@ import (
 	"github.com/mgutz/ansi"
 )
 
-var errNonAudio = errors.New("non-audio file")
-var stdoutMutex sync.Mutex
+var (
+	coverExtList = map[string]bool{"gif": true, "jpeg": true, "jpg": true, "png": true}
+	errNonAudio  = errors.New("non-audio file")
+	rePrintable  = regexp.MustCompile(`\pC`)
+	stdoutMutex  sync.Mutex
+)
 
 // analyzer loads file metadata into the file record, run the scripts and preview the result.
 // If required, it will fetch additional input metadata online.
