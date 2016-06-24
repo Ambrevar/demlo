@@ -139,13 +139,13 @@ func (a *analyzer) Run(fr *FileRecord) error {
 		var releaseID ReleaseID
 		prepareTrackTags(input, 1)
 		if options.Gettags {
-			releaseID, defaultTags, err = getOnlineTags(fr)
+			releaseID, defaultTags, err = GetOnlineTags(fr)
 			if err != nil {
 				fr.debug.Print("Online tags query error: ", err)
 			}
 		}
 		if options.Getcover {
-			fr.onlineCoverCache, input.onlineCover, err = getOnlineCover(fr, releaseID)
+			fr.onlineCoverCache, input.onlineCover, err = GetOnlineCover(fr, releaseID)
 			if err != nil {
 				fr.debug.Print("Online cover query error: ", err)
 			}

@@ -401,9 +401,9 @@ func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string)
 		}
 		dst = f.Name()
 		f.Close()
+
 	} else {
 		// 'dst' does not exist.
-
 		st, err := os.Stat(inputPath)
 		if err != nil {
 			return "", err

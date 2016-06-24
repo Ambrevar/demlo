@@ -1,7 +1,7 @@
 // Copyright © 2013-2016 Pierre Neidhardt <ambrevar@gmail.com>
 // Use of this file is governed by the license that can be found in LICENSE.
 
-// TODO: Test how memoization scales with coverCache and tagsCache.
+// TODO: Test how memoization scales with caches.
 // TODO: Check if proxy env variables are taken into account for AcoustID and musicbrainz.
 // TODO: Add CLI option to select the online entry to tag from.
 // TODO: Add CLI option to select the tolerance to tag approximation when online-tagging:
@@ -67,30 +67,17 @@ var (
 
 	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
 	// the same AlbumKey but refer to a different album?
-	releaseIndex = struct {
-		v map[AlbumKey]ReleaseID
-		sync.RWMutex
-	}{v: map[AlbumKey]ReleaseID{}}
-	tagsCache = struct {
-		v map[ReleaseID]Tags
-		sync.RWMutex
-	}{v: map[ReleaseID]Tags{}}
-	coverCache = struct {
-		v map[ReleaseID]Cover
-		sync.RWMutex
-	}{v: map[ReleaseID]Cover{}}
+	releaseIDCache = ReleaseIDCache{v: map[AlbumKey]*ReleaseIDEntry{}}
+	tagsCache      = TagsCache{v: map[ReleaseID]*TagsEntry{}}
+	coverCache     = CoverCache{v: map[ReleaseID]*CoverEntry{}}
 
 	errMissingCover = errors.New("cover not found")
 	errUnidentAlbum = errors.New("unidentifiable album")
 )
 
-// RecordingID is the MusicBrainz ID of a specific track. Different remixes have
-// different RecordingIDs.
-type RecordingID gomusicbrainz.MBID
-
-// ReleaseID is the MusicBrainz ID of a specific album release. Releases in
-// different countries with varying bonus content have different ReleaseIDs.
-type ReleaseID gomusicbrainz.MBID
+func init() {
+	musicBrainzClient, _ = gomusicbrainz.NewWS2Client("https://musicbrainz.org/ws/2", application, version, URL)
+}
 
 // AlbumKey is used to cluster tracks by album. The key is used in the lookup
 // cache.
@@ -98,6 +85,21 @@ type AlbumKey struct {
 	album       string
 	albumartist string
 	date        string
+}
+
+func makeAlbumKey(input *inputInfo) AlbumKey {
+	album := stringNorm(input.tags["album"])
+	if album == "" {
+		// If there is no 'album' tag, use the parent folder path. WARNING: This
+		// heuristic is not working when tracks of different albums are in the same
+		// folder without album tags.
+		album = stringNorm(filepath.Dir(input.path))
+	}
+
+	albumartist := stringNorm(input.tags["album_artist"])
+	date := stringNorm(input.tags["date"])
+
+	return AlbumKey{album: album, albumartist: albumartist, date: date}
 }
 
 // Recording holds tag information of the track.
@@ -108,6 +110,125 @@ type Recording struct {
 	track    string
 }
 
+// RecordingID is the MusicBrainz ID of a specific track. Different remixes have
+// different RecordingIDs.
+type RecordingID gomusicbrainz.MBID
+
+// ReleaseID is the MusicBrainz ID of a specific album release. Releases in
+// different countries with varying bonus content have different ReleaseIDs.
+type ReleaseID gomusicbrainz.MBID
+
+type ReleaseIDEntry struct {
+	releaseID ReleaseID
+	ready     chan struct{}
+}
+
+type ReleaseIDCache struct {
+	v map[AlbumKey]*ReleaseIDEntry
+	sync.Mutex
+}
+
+// Return the releaseID corresponding most to tags found in 'input'.
+// When the relation is < RELATION_THRESHOLD, return the zero ReleaseID "".
+// The RecordingID comes for free when the release ID is queried, so we might
+// just return it as well.
+func (c *ReleaseIDCache) get(albumKey AlbumKey, fr *FileRecord) (ReleaseID, RecordingID, error) {
+	var recordingID RecordingID
+	var err error
+
+	c.Lock()
+	e, exactMatch := c.fuzzyMatch(albumKey)
+	if e == nil {
+		fr.debug.Print("Fetch new releaseID for uncached albumKey")
+
+		e = &ReleaseIDEntry{ready: make(chan struct{})}
+		c.v[albumKey] = e
+		c.Unlock()
+
+		defer func() {
+			close(e.ready)
+		}()
+
+		fingerprint, duration, err := fingerprint(fr.input.path)
+		if err != nil {
+			return "", "", err
+		}
+		meta, err := acoustid.Get(acoustIDAPIKey, fingerprint, duration)
+		if err != nil {
+			return "", "", err
+		}
+		var releaseID ReleaseID
+		recordingID, releaseID, err = queryAcoustID(fr, meta, duration)
+		if err != nil {
+			return "", "", err
+		}
+
+		// Only set e.releaseID when all the queries succeed to guarantee
+		// e.releaseID is either zero or a valid release ID.
+		e.releaseID = releaseID
+	} else {
+		c.Unlock()
+		fr.debug.Print("Wait for cached releaseID")
+		<-e.ready
+
+		if !exactMatch {
+			// If a non-exact match was found, the key is not cache at this point. Add
+			// it to reduce drifting away and to speed-up possible future exact
+			// matches.
+			c.Lock()
+			fr.debug.Print("Add non-exact match to release cache")
+			ready := make(chan struct{})
+			c.v[albumKey] = &ReleaseIDEntry{releaseID: e.releaseID, ready: ready}
+			close(ready)
+			c.Unlock()
+		}
+	}
+
+	return e.releaseID, recordingID, err
+}
+
+// Warning: not concurrent-safe, caller must mutex the call.
+// We look for exact matches first to speed-up the process.
+func (c *ReleaseIDCache) fuzzyMatch(albumKey AlbumKey) (r *ReleaseIDEntry, exactMatch bool) {
+	r = c.v[albumKey]
+	if r != nil {
+		return r, true
+	}
+
+	// Threshold above which a key is considered a match for the cache.
+	const relationThreshold = 0.7
+
+	// Lookup the release in cache.
+	albumMatches := []AlbumKey{}
+	albumArtistMatches := []AlbumKey{}
+	relMax := 0.0
+	var matchKey AlbumKey
+
+	for key := range c.v {
+		rel := stringRel(albumKey.album, key.album)
+		if rel >= relationThreshold {
+			albumMatches = append(albumMatches, key)
+		}
+	}
+
+	for _, key := range albumMatches {
+		rel := stringRel(albumKey.albumartist, key.albumartist)
+		if rel >= relationThreshold {
+			albumArtistMatches = append(albumArtistMatches, key)
+		}
+	}
+
+	for _, key := range albumArtistMatches {
+		rel := stringRel(albumKey.date, key.date)
+		if rel >= relationThreshold && rel > relMax {
+			relMax = rel
+			matchKey = key
+		}
+	}
+
+	return c.v[matchKey], false
+}
+
 // Tags holds tag information of an album.
 type Tags struct {
 	album       string
@@ -116,14 +237,85 @@ type Tags struct {
 	recordings  map[RecordingID]Recording
 }
 
+// The chan is an memoization idiom that allows for duplicate suppression in
+// queries.
+type TagsEntry struct {
+	tags  Tags
+	ready chan struct{}
+}
+type TagsCache struct {
+	v map[ReleaseID]*TagsEntry
+	sync.Mutex
+}
+
+// When adding an entry to tagsCache, the fucntion will end prematurely on
+// error, leaving the 'tags' structure empty (zero value). It allows for
+// spotting dummy entries during future queries and avoid running into errors
+// again.
+func (c *TagsCache) get(releaseID ReleaseID, albumKey AlbumKey, fr *FileRecord, recordingID *RecordingID) (*Tags, error) {
+	var err error
+
+	c.Lock()
+	e := c.v[releaseID]
+	if e == nil {
+		fr.debug.Print("Fetch new tags for uncached releaseID")
+
+		e = &TagsEntry{ready: make(chan struct{})}
+		c.v[releaseID] = e
+		c.Unlock()
+
+		// We use releaseID to identify albums: it is more reliable than the album
+		// name in tags.
+		e.tags, err = queryMusicBrainz(releaseID)
+		close(e.ready)
+	} else {
+		c.Unlock()
+		fr.debug.Print("Wait for cached tags")
+		<-e.ready
+	}
+
+	return &e.tags, err
+}
+
 // Cover holds the cover and its inputCover description.
 type Cover struct {
 	picture []byte
 	desc    inputCover
 }
 
-func init() {
-	musicBrainzClient, _ = gomusicbrainz.NewWS2Client("https://musicbrainz.org/ws/2", application, version, URL)
+// See TagsEntry description.
+type CoverEntry struct {
+	cover Cover
+	ready chan struct{}
+}
+
+type CoverCache struct {
+	v map[ReleaseID]*CoverEntry
+	sync.Mutex
+}
+
+// See TagsCache.Get documentation.
+func (c *CoverCache) get(releaseID ReleaseID, fr *FileRecord) (*Cover, error) {
+	var err error
+
+	c.Lock()
+	e := c.v[releaseID]
+	if e == nil {
+		fr.debug.Print("Fetch new cover for uncached releaseID")
+
+		e = &CoverEntry{ready: make(chan struct{})}
+		c.v[releaseID] = e
+		c.Unlock()
+
+		e.cover, err = queryCover(releaseID)
+		close(e.ready)
+	} else {
+		c.Unlock()
+		fr.debug.Print("Wait for cached cover")
+		<-e.ready
+	}
+
+	return &e.cover, err
 }
 
 // MusicBrainz returns 2 artist names per recording. They are stored in the NameCredit struct:
@@ -150,7 +342,7 @@ func queryMusicBrainz(releaseID ReleaseID) (Tags, error) {
 	}
 
 	// TODO: Add more MusicBrainz debug info.
-	// display.Debug.Print("musicbrainz: release albumartist: ", tags.albumartist)
+	// fr.debug.Print("musicbrainz: release albumartist: ", tags.albumartist)
 
 	for _, entry := range mbRelease.Mediums {
 		for _, v := range entry.Tracks {
@@ -401,122 +593,35 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 	return cover, nil
 }
 
-// Return the releaseID corresponding most to tags found in 'input'.
-// When the relation is < RELATION_THRESHOLD, return the zero ReleaseID.
-func queryIndex(input *inputInfo) (ReleaseID, AlbumKey) {
-	// Threshold above which a key is considered a match for the cache.
-	const relationThreshold = 0.7
-
-	album := stringNorm(input.tags["album"])
-	if album == "" {
-		// If there is no 'album' tag, use the parent folder path. WARNING: This
-		// heuristic is not working when tracks of different albums are in the same
-		// folder without album tags.
-		album = stringNorm(filepath.Dir(input.path))
-	}
-
-	albumartist := stringNorm(input.tags["album_artist"])
-	date := stringNorm(input.tags["date"])
-
-	var albumKey = AlbumKey{album: album, albumartist: albumartist, date: date}
-
-	// Lookup the release in cache.
-	albumMatches := []AlbumKey{}
-	albumArtistMatches := []AlbumKey{}
-	relMax := 0.0
-	var matchKey AlbumKey
-
-	releaseIndex.RLock()
-	for key := range releaseIndex.v {
-		rel := stringRel(albumKey.album, key.album)
-		if rel >= relationThreshold {
-			albumMatches = append(albumMatches, key)
-		}
-	}
-	releaseIndex.RUnlock()
-
-	for _, key := range albumMatches {
-		rel := stringRel(albumKey.albumartist, key.albumartist)
-		if rel >= relationThreshold {
-			albumArtistMatches = append(albumArtistMatches, key)
-		}
-	}
-	for _, key := range albumArtistMatches {
-		rel := stringRel(albumKey.date, key.date)
-		if rel >= relationThreshold && rel > relMax {
-			relMax = rel
-			matchKey = key
-		}
-	}
-
-	releaseIndex.RLock()
-	var releaseID = releaseIndex.v[matchKey]
-	releaseIndex.RUnlock()
-
-	return releaseID, albumKey
-}
-
-func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
-	input := &fr.input
+func GetOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
+	fr.debug.Printf("Get tags")
 
 	var recordingID RecordingID
+	input := &fr.input
 
-	releaseID, albumKey := queryIndex(input)
-	fr.debug.Printf("Album cache Key: %q\n", albumKey)
+	albumKey := makeAlbumKey(input)
+	// recordingID will be set only when releaseID is queried online. When hitting
+	// the cache, the recordingID is missing so we need to infere its value from
+	// the heuristic below.
+	releaseID, recordingID, err := releaseIDCache.get(albumKey, fr)
+	if err != nil {
+		return "", nil, err
+	}
+	fr.debug.Printf("albumKey = %q", albumKey)
 
-	tagsCache.RLock()
-	tags, ok := tagsCache.v[releaseID]
-	tagsCache.RUnlock()
-	if !ok {
-		// Not cached.
-
-		// Add entry to tagsCache on exit, should the query fail or succeed. If it
-		// fails, the entry will be zero, thus allowing to spot dummy entries and
-		// avoid querying it again.
-		defer func() {
-			tagsCache.Lock()
-			tagsCache.v[releaseID] = tags
-			tagsCache.Unlock()
-		}()
-
-		fingerprint, duration, err := fingerprint(input.path)
-		if err != nil {
-			return "", nil, err
-		}
-
-		meta, err := acoustid.Get(acoustIDAPIKey, fingerprint, duration)
-		if err != nil {
-			return "", nil, err
-		}
-
-		recordingID, releaseID, err = queryAcoustID(fr, meta, duration)
-		if err != nil {
-			return "", nil, err
-		}
-
-		// Add releaseID to cache.
-		releaseIndex.Lock()
-		releaseIndex.v[albumKey] = releaseID
-		releaseIndex.Unlock()
-
-		// We use releaseID to identify albums: it is more reliable than the album
-		// name in tags.
-		tags, err = queryMusicBrainz(releaseID)
-		if err != nil {
-			return releaseID, nil, err
-		}
+	tags, err := tagsCache.get(releaseID, albumKey, fr, &recordingID)
+	if err != nil {
+		return releaseID, nil, err
 	}
 
 	if tags.recordings == nil {
-		// Dummy entry.
-
 		// The entry is a previously unidentifiable album. Skip it to save time.
 		// WARNING: This is a reasonable behaviour, however an album might be
 		// partially covered (i.e. missing tracks in MusicBrainz DB).
-		return releaseID, nil, errors.New("unidentifiable album")
+		return releaseID, nil, errUnidentAlbum
 	}
 
-	fr.debug.Print("Release ID: ", releaseID)
+	fr.debug.Printf("releaseID = %q", releaseID)
 
 	if recordingID == "" {
 		// Lookup recording in cache. Needed when acoustID was not called.
@@ -577,7 +682,7 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		return releaseID, nil, errors.New("recording ID absent from cache")
 	}
 
-	fr.debug.Print("Recording ID: ", recordingID)
+	fr.debug.Printf("recordingID = %q", recordingID)
 
 	// At this point, 'release' and 'recording' must be properly set.
 	var result map[string]string
@@ -593,55 +698,27 @@ func getOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 }
 
 // See 'getOnlineTags' comments.
-func getOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc inputCover, err error) {
+func GetOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc inputCover, err error) {
+	fr.debug.Printf("Get cover (releaseID = %q)", releaseID)
+
 	input := &fr.input
 
-	var albumKey AlbumKey
-
+	// The releaseID can be known from other caches (tagsCache) while not
+	// referenced yet in CoverCache. We only need fingerprinting when releaseID is
+	// unknown.
 	if releaseID == "" {
-		releaseID, albumKey = queryIndex(input)
-	}
-
-	coverCache.RLock()
-	cover, ok := coverCache.v[releaseID]
-	coverCache.RUnlock()
-	if !ok {
-		// Not cached.
-
-		defer func() {
-			coverCache.Lock()
-			coverCache.v[releaseID] = cover
-			coverCache.Unlock()
-		}()
-
-		// The releaseID can be known from other caches (tagsCache) while not
-		// referenced yet in coverCache. We only need fingerprinting when releaseID
-		// is unknown.
-		if releaseID == "" {
-			fingerprint, duration, err := fingerprint(input.path)
-			if err != nil {
-				return nil, inputCover{}, err
-			}
-			meta, err := acoustid.Get(acoustIDAPIKey, fingerprint, duration)
-			if err != nil {
-				return nil, inputCover{}, err
-			}
-
-			_, releaseID, err = queryAcoustID(fr, meta, duration)
-			if err != nil {
-				return nil, inputCover{}, err
-			}
-		}
-
-		// Add releaseID to cache.
-		releaseIndex.Lock()
-		releaseIndex.v[albumKey] = releaseID
-		releaseIndex.Unlock()
-
-		cover, err = queryCover(releaseID)
+		var albumKey = makeAlbumKey(input)
+		fr.debug.Printf("albumKey = %q", albumKey)
+		releaseID, _, err = releaseIDCache.get(albumKey, fr)
 		if err != nil {
 			return nil, inputCover{}, err
 		}
+		fr.debug.Printf("releaseID = %q", releaseID)
+	}
+
+	cover, err := coverCache.get(releaseID, fr)
+	if err != nil {
+		return nil, inputCover{}, err
 	}
 
 	if len(cover.picture) == 0 {
