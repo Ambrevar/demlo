@@ -20,26 +20,36 @@ import (
 // TODO: Make package independant.
 // TODO: Test how memoization scales with regexpCache.
 
+type entry struct {
+	re    *regexp.Regexp
+	ready chan struct{}
+}
+
 var regexpCache = struct {
-	v map[string]*regexp.Regexp
-	sync.RWMutex
-}{v: map[string]*regexp.Regexp{}}
+	v map[string]*entry
+	sync.Mutex
+}{v: map[string]*entry{}}
 
 func regexpQuery(L *lua.State, pattern string) *regexp.Regexp {
-	regexpCache.RLock()
-	re, ok := regexpCache.v[pattern]
-	regexpCache.RUnlock()
-	if !ok {
+	regexpCache.Lock()
+	e := regexpCache.v[pattern]
+	if e == nil {
+		e = &entry{ready: make(chan struct{})}
+		regexpCache.v[pattern] = e
+		regexpCache.Unlock()
+
 		var err error
-		re, err = regexp.Compile(pattern)
+		e.re, err = regexp.Compile(pattern)
 		if err != nil {
 			L.RaiseError(err.Error())
 		}
-		regexpCache.Lock()
-		regexpCache.v[pattern] = re
+
+		close(e.ready)
+	} else {
 		regexpCache.Unlock()
+		<-e.ready
 	}
-	return re
+	return e.re
 }
 
 // Warning: The result can be > len(s).
