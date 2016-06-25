@@ -165,7 +165,7 @@ func transformStream(fr *FileRecord, track int) error {
 	}
 	ffmpegParameters = append(ffmpegParameters, dst)
 
-	fr.debug.Printf("Audio %v parameters: %q", track, ffmpegParameters)
+	fr.debug.Printf("FFmpeg parameters: track #%v %q", track, ffmpegParameters)
 
 	cmd := exec.Command("ffmpeg", ffmpegParameters...)
 	var stderr bytes.Buffer
@@ -183,11 +183,13 @@ func transformStream(fr *FileRecord, track int) error {
 			return err
 		}
 		if isInplace {
+			fr.debug.Printf("Rename %q to %q to transform inplace", dst, input.path)
 			err = os.Rename(dst, input.path)
 			if err != nil {
 				fr.error.Print(err)
 			}
 		} else {
+			fr.debug.Printf("Remove source %q", input.path)
 			err = os.Remove(input.path)
 			if err != nil {
 				fr.error.Print(err)
@@ -211,17 +213,20 @@ func transformMetadata(fr *FileRecord, track int) error {
 	if !isInplace {
 		err = nil
 		if options.Removesource {
+			fr.debug.Printf("Rename %q to %q", input.path, dst)
 			err = os.Rename(input.path, dst)
 		}
 		if err != nil || !options.Removesource {
 			// If renaming failed, it might be because of a cross-device
 			// destination. We try to copy instead.
+			fr.debug.Printf("Copy %q to %q", input.path, dst)
 			err := CopyFile(dst, input.path)
 			if err != nil {
 				fr.error.Println(err)
 				return err
 			}
 			if options.Removesource {
+				fr.debug.Printf("Remove source %q", input.path)
 				err = os.Remove(input.path)
 				if err != nil {
 					fr.error.Println(err)
@@ -249,6 +254,8 @@ func transformMetadata(fr *FileRecord, track int) error {
 
 	if tagsChanged {
 		// TODO: Can TagLib remove extra tags?
+		fr.debug.Print("Set tags inplace with TagLib")
+
 		f, err := taglib.Read(dst)
 		if err != nil {
 			fr.error.Print(err)
