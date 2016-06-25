@@ -81,8 +81,38 @@ func (t *transformer) Run(fr *FileRecord) error {
 			encodingChanged = true
 		}
 
+		// TODO: TagLib does not support arbitrary tags from its C interface.
+		// It can tag inplace which offers a significant speedup. The
+		// 'taglibSupported' is a workaround used to check whether FFmpeg should be
+		// used or not to ensure correct results.
+		var taglibFormats = map[string]bool{
+			"album":   true,
+			"artist":  true,
+			"comment": true,
+			"date":    true,
+			"genre":   true,
+			"title":   true,
+			"track":   true,
+		}
+		var taglibSupported = true
+		for k, v := range input.tags {
+			if k != "encoder" && output.Tags[k] != v && !taglibFormats[k] {
+				taglibSupported = false
+				break
+			}
+		}
+
+		if taglibSupported {
+			for k, v := range output.Tags {
+				if k != "encoder" && input.tags[k] != v && !taglibFormats[k] {
+					taglibSupported = false
+					break
+				}
+			}
+		}
+
 		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
-		if encodingChanged {
+		if encodingChanged || !taglibSupported {
 			return transformStream(fr, track)
 		}
 		return transformMetadata(fr, track)
@@ -253,7 +283,6 @@ func transformMetadata(fr *FileRecord, track int) error {
 	}
 
 	if tagsChanged {
-		// TODO: Can TagLib remove extra tags?
 		fr.debug.Print("Set tags inplace with TagLib")
 
 		f, err := taglib.Read(dst)
@@ -263,7 +292,6 @@ func transformMetadata(fr *FileRecord, track int) error {
 		}
 		defer f.Close()
 
-		// TODO: Arbitrary tag support with taglib?
 		if output.Tags["album"] != "" {
 			f.SetAlbum(output.Tags["album"])
 		}
