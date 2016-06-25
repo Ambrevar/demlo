@@ -151,6 +151,13 @@ local function append_constants(const, new)
 	return const
 end
 
+local debug_output = {
+	const = {},
+	roman = {},
+	mixed = {},
+	macx = {},
+}
+
 -- "Constants" are written as provided, except if they begin a sentence in which
 -- case the first letter is uppercase.
 --
@@ -190,7 +197,7 @@ local function setcase(input, const, sentencecase)
 		local var = const[upper]
 		if var then
 			word = const[upper] or word
-			debug('Match constant [' .. word .. ']')
+			debug_output['const'][#debug_output['const']+1] = word
 			unmatched = false
 		end
 
@@ -201,7 +208,7 @@ local function setcase(input, const, sentencecase)
 		-- lid, mid-, mild, Vic).
 		if unmatched and word:match('^[IVXLCDM]+$') then
 			unmatched = false
-			debug('Match Roman numerals in [' .. word .. ']')
+			debug_output['roman'][#debug_output['roman']+1] = word
 		end
 
 		-- Rule 3: Names like D'Arcy or O'Reilly.
@@ -210,13 +217,13 @@ local function setcase(input, const, sentencecase)
 		if unmatched and not sentencecase and upper:match([=[^[DO]['´’][\pL\pN]]=]) then
 			word = upper:sub(1, 3) .. lower:sub(4)
 			unmatched = false
-			debug('Match on mixed case: ' .. word)
+			debug_output['mixed'][#debug_output['mixed']+1] = word
 		end
 
 		-- Rule 4: Names like MacNeil or McDonald.
 		if unmatched and upper:match('^MA?C[B-DF-HJ-NP-TV-Z]') then
 			unmatched = false
-			debug('Match on MacX: ' .. word)
+			debug_output['macx'][#debug_output['macx']+1] = word
 			if upper:sub(2, 2) == 'A' then
 				word = upper:sub(1, 1) .. 'ac' .. upper:sub(4, 4) .. lower:sub(5)
 			else
@@ -268,4 +275,17 @@ end
 
 for k, v in pairs(output.tags) do
 	output.tags[k] = setcase(v, constants, sentencecase)
+end
+
+local debug_str = ""
+for k, v in pairs(debug_output) do
+	if v ~= nil then
+		local str = table.concat(v, " ")
+		if #str ~= 0 then
+			debug_str = debug_str .. " " .. k .. "={" .. str .. "}"
+		end
+	end
+end
+if #debug_str ~= 0 then
+	debug("Script case:" .. debug_str)
 end

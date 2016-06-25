@@ -31,12 +31,12 @@ local function to_jpeg(input_cover, stream, file)
 	output_cover.parameters = {}
 
 	if input_cover.width < LIMIT_LOW or input_cover.height < LIMIT_LOW then
-		debug('skip low quality cover: ' .. id  ..  ' ([' .. tostring(input_cover.width) .. 'x' .. tostring(input_cover.height) .. '] < [' .. tostring(LIMIT_LOW) .. 'x'  .. tostring(LIMIT_LOW) .. '])')
+		debug('Script cover: skip low quality: ' .. id  ..  ' ([' .. tostring(input_cover.width) .. 'x' .. tostring(input_cover.height) .. '] < [' .. tostring(LIMIT_LOW) .. 'x'  .. tostring(LIMIT_LOW) .. '])')
 		return output_cover
 	end
 
 	if checksum_list[input_cover.checksum] then
-		debug('skip duplicate cover: ' .. id ..  ' (checksum('.. checksum_list[input_cover.checksum] ..')=' .. input_cover.checksum  ..')')
+		debug('Script cover: skip duplicate: ' .. id ..  ' (checksum('.. checksum_list[input_cover.checksum] ..')=' .. input_cover.checksum  ..')')
 		return output_cover
 	end
 
@@ -45,7 +45,7 @@ local function to_jpeg(input_cover, stream, file)
 
 	local max_ratio = math.max(input_cover.width / LIMIT_HIGH, input_cover.height / LIMIT_HIGH)
 	if max_ratio > 1 then
-		debug('down-scale big cover: ' .. id ..  ' ([' .. tostring(input_cover.width) .. 'x' .. tostring(input_cover.height) .. '] > [' .. tostring(LIMIT_HIGH) .. 'x'  .. tostring(LIMIT_HIGH) .. '])')
+		debug('Script cover: down-scale: ' .. id ..  ' ([' .. tostring(input_cover.width) .. 'x' .. tostring(input_cover.height) .. '] > [' .. tostring(LIMIT_HIGH) .. 'x'  .. tostring(LIMIT_HIGH) .. '])')
 		output_cover.parameters[#output_cover.parameters+1] = '-s'
 		output_cover.parameters[#output_cover.parameters+1] = math.floor(input_cover.width/max_ratio + 0.5) .. 'x' .. math.floor(input_cover.height/max_ratio + 0.5)
 
