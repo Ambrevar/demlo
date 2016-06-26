@@ -496,7 +496,15 @@ func queryAcoustID(fr *FileRecord, meta acoustid.Meta, duration int) (recordingI
 				// In case of tie, position has more weight than year and duration.
 				score := (26*relTitle + 25*relArtist + 13*relAlbumArtist + 13*relAlbum + 9*relPosition + 7*relYear + 7*relDuration) / 100
 
-				fr.debug.Printf(`Score: %.4g
+				if score > scoreMax {
+					fr.debug.Printf("Score: %.4g (new max)", score)
+					scoreMax = score
+					releaseID = ReleaseID(acoustRelease.ID)
+					recordingID = RecordingID(acoustRecording.ID)
+				} else {
+					fr.debug.Printf("Score: %.4g", score)
+				}
+				fr.debug.Printf(`
 %-12s %-7.4g [%v]
 %-12s %-7.4g [%v]
 %-12s %-7.4g [%v]
@@ -504,7 +512,6 @@ func queryAcoustID(fr *FileRecord, meta acoustid.Meta, duration int) (recordingI
 %-12s %-7.4g [%v]
 Disc %v, Track %v, TrackCount %v: %.4g
 `,
-					score,
 					"Title", relTitle, acoustRecording.Title,
 					"Artist", relArtist, dbgArtist,
 					"Album", relAlbum, acoustRelease.Title,
@@ -512,15 +519,9 @@ Disc %v, Track %v, TrackCount %v: %.4g
 					"Year", relYear, acoustRelease.Date.Year,
 					dbgMedium, dbgTrack, dbgTrackCount, relPosition)
 
-				if score > scoreMax {
-					fr.debug.Printf("New max score: %-7.4g\n", score)
-					scoreMax = score
-					releaseID = ReleaseID(acoustRelease.ID)
-					recordingID = RecordingID(acoustRecording.ID)
-					if score == 1 {
-						// Maximum reached, we can stop here.
-						return recordingID, releaseID, nil
-					}
+				if score == 1 {
+					// Maximum reached, we can stop here.
+					return recordingID, releaseID, nil
 				}
 			}
 		}
