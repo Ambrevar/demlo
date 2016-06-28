@@ -14,7 +14,7 @@ import (
 
 	"bitbucket.org/ambrevar/demlo/golua/unicode"
 	"github.com/aarzilli/golua/lua"
-	"github.com/ambrevar/luar"
+	"github.com/stevedonovan/luar"
 )
 
 const (
