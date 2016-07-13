@@ -605,7 +605,7 @@ func main() {
 				return nil
 			}
 			// 'visit' always keeps going, so no error.
-			_ = filepath.Walk(file, visit)
+			_ = RealPathWalk(file, visit)
 		}
 		close(p.input)
 	}()

@@ -8,9 +8,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/yookoala/realpath"
 )
 
 // Basename is like filepath.Base but do not strip the trailing slash.
@@ -59,6 +62,88 @@ func CopyFile(dst, src string) error {
 
 	_, err = io.Copy(df, sf)
 	return err
+}
+
+// readDirNames reads the directory named by dirname and returns
+// a sorted list of directory entries.
+// This is a copy of 'filepath.readDirNames'.
+func readDirNames(dirname string) ([]string, error) {
+	f, err := os.Open(dirname)
+	if err != nil {
+		return nil, err
+	}
+	names, err := f.Readdirnames(-1)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// Same as 'filepath.walk' but the 'path' is changed to its 'realpath' to
+// resolve symbolic links and avoid loops.
+func realPathWalk(path string, info os.FileInfo, walkFn filepath.WalkFunc, visited map[string]bool) error {
+	realPath, err := realpath.Realpath(path)
+	if err == nil {
+
+		path = realPath
+		if visited[path] {
+			return nil
+		}
+		visited[path] = true
+
+		var realInfo os.FileInfo
+		realInfo, err = os.Lstat(path)
+		if err == nil {
+			info = realInfo
+		}
+	}
+
+	err = walkFn(path, info, err)
+	if err != nil {
+		if info.IsDir() && err == filepath.SkipDir {
+			return nil
+		}
+		return err
+	}
+
+	if !info.IsDir() {
+		return nil
+	}
+
+	names, err := readDirNames(path)
+	if err != nil {
+		return walkFn(path, info, err)
+	}
+
+	for _, name := range names {
+		filename := filepath.Join(path, name)
+		fileInfo, err := os.Lstat(filename)
+		if err != nil {
+			if err := walkFn(filename, fileInfo, err); err != nil && err != filepath.SkipDir {
+				return err
+			}
+		} else {
+			err = realPathWalk(filename, fileInfo, walkFn, visited)
+			if err != nil {
+				if !fileInfo.IsDir() || err != filepath.SkipDir {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// EvalSymWalk is like filepath.Walk but follows symlinks.
+func RealPathWalk(root string, walkFn filepath.WalkFunc) error {
+	info, err := os.Lstat(root)
+	if err != nil {
+		return walkFn(root, nil, err)
+	}
+	visited := make(map[string]bool)
+	return realPathWalk(root, info, walkFn, visited)
 }
 
 // Ext returns the file name extension used by path. The extension is the suffix
