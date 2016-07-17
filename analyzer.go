@@ -391,7 +391,7 @@ func getExternalCover(fr *FileRecord) error {
 	input.externalCovers = make(map[string]inputCover)
 
 	for _, f := range names {
-		if !coverExtList[Ext(f)] {
+		if !coverExtList[strings.ToLower(Ext(f))] {
 			continue
 		}
 		fd, err := os.Open(filepath.Join(filepath.Dir(input.path), f))
