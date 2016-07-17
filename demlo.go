@@ -225,6 +225,11 @@ type inputInfo struct {
 	bitrate int    // In bytes per second.
 	tags    map[string]string
 
+	modTime struct {
+		sec  int64
+		nsec int
+	} `lua:"time"`
+
 	embeddedCovers []inputCover          `lua:"embeddedcovers"`
 	externalCovers map[string]inputCover `lua:"externalcovers"`
 	onlineCover    inputCover            `lua:"onlinecover"`

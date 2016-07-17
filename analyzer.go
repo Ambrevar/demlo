@@ -276,6 +276,15 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 		fr.Streams = probed.Streams
 	}
 
+	// Get modification time.
+	fi, err := os.Lstat(info.path)
+	if err != nil {
+		fr.error.Print(err)
+		return err
+	}
+	info.modTime.sec = fi.ModTime().Unix()
+	info.modTime.nsec = fi.ModTime().Nanosecond()
+
 	// Index of the first audio stream.
 	info.audioIndex = -1
 	for k, v := range probed.Streams {
