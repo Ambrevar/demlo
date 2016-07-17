@@ -18,7 +18,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -321,6 +320,7 @@ func newFileRecord(path string) *FileRecord {
 }
 
 // findScript returns the path of the first script found with name 'name'.
+// The '.lua' extension is appended in the search if necessary.
 // It looks up, by order of precedence ('.' is the current folder):
 //
 //   . > userScriptRoot > systemScriptRoot
@@ -330,21 +330,31 @@ func newFileRecord(path string) *FileRecord {
 // additional command-line parameters. Besides, since scripts are sorted by
 // basename, several identical basenames could lead to an unstable sort order.
 func findScript(name string) (path string, st os.FileInfo, err error) {
-	nameExt := name + ".lua"
-	list := []string{
+	names := []string{
 		name,
-		nameExt,
-		filepath.Join(userScriptRoot, name),
-		filepath.Join(userScriptRoot, nameExt),
-		filepath.Join(systemScriptRoot, name),
-		filepath.Join(systemScriptRoot, nameExt),
+		name + ".lua",
+		name + ".lUa",
+		name + ".luA",
+		name + ".lUA",
+		name + ".Lua",
+		name + ".LUa",
+		name + ".LuA",
+		name + ".LUA",
+	}
+	list := make([]string, len(names))
+	copy(list, names)
+	for _, n := range names {
+		list = append(list, filepath.Join(userScriptRoot, n))
+	}
+	for _, n := range names {
+		list = append(list, filepath.Join(systemScriptRoot, n))
 	}
 	for _, path := range list {
 		if st, err := os.Stat(path); err == nil {
 			return path, st, nil
 		}
 	}
-	return "", nil, errors.New("script not found")
+	return "", nil, fmt.Errorf("script not found: %v", name)
 }
 
 func printExtensions() {
@@ -386,7 +396,7 @@ func cacheScripts() {
 	for _, s := range options.Scripts {
 		path, st, err := findScript(s)
 		if err != nil {
-			warning.Printf("%v: %v", err, s)
+			warning.Print(err)
 			continue
 		}
 		if visited[path] {
