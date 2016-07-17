@@ -61,7 +61,14 @@ func (a *analyzer) Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	SandboxCompileScripts(a.L, cache.scripts)
+
+	for _, script := range cache.scripts {
+		SandboxCompileScript(a.L, script.name, script.buf)
+	}
+
+	for name, action := range cache.actions {
+		SandboxCompileAction(a.L, name, action)
+	}
 }
 
 func (a *analyzer) Close() {
@@ -71,59 +78,14 @@ func (a *analyzer) Close() {
 func (a *analyzer) Run(fr *FileRecord) error {
 	fr.section.Println(fr.input.path)
 
-	cmd := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", "-show_format", fr.input.path)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	out, err := cmd.Output()
+	// Should be run before setting the covers.
+	err := prepareInput(fr, &fr.input)
 	if err != nil {
-		fr.error.Print("ffprobe: ", stderr.String())
 		return err
 	}
 
 	// Shorthand.
 	input := &fr.input
-
-	err = json.Unmarshal(out, &input)
-	if err != nil {
-		fr.error.Print(err)
-		return err
-	}
-	err = json.Unmarshal(out, &fr)
-	if err != nil {
-		fr.error.Print(err)
-		return err
-	}
-
-	// Index of the first audio stream.
-	input.audioIndex = -1
-	for k, v := range fr.Streams {
-		if v.CodecType == "audio" {
-			input.audioIndex = k
-			break
-		}
-	}
-	if input.audioIndex == -1 {
-		fr.warning.Print("Non-audio file:", input.path)
-		return errNonAudio
-	}
-
-	// Set bitrate.
-	// FFmpeg stores bitrate as a string, Demlo needs a number. If
-	// 'streams[audioIndex].bit_rate' is empty (e.g. in APE files), look for
-	// 'format.bit_rate'. To ease querying bitrate from user scripts, store it
-	// in 'input.bitrate'.
-	input.bitrate, err = strconv.Atoi(fr.Streams[input.audioIndex].Bitrate)
-	if err != nil {
-		input.bitrate, err = strconv.Atoi(fr.Format.Bitrate)
-		if err != nil {
-			fr.warning.Print("Cannot get bitrate from", input.path)
-			return err
-		}
-	}
-
-	// prepareTags should be run before setting the covers.
-	prepareTags(fr)
 
 	err = getExternalCover(fr)
 	if err != nil {
@@ -164,11 +126,6 @@ func (a *analyzer) Run(fr *FileRecord) error {
 	if previewOptions.printDiff {
 		for track := 0; track < input.trackCount; track++ {
 			preview(fr, track)
-			// Warn for existence.
-			_, err = os.Stat(fr.output[track].Path)
-			if err == nil || !os.IsNotExist(err) {
-				fr.warning.Println("Destination exists:", fr.output[track].Path)
-			}
 		}
 	}
 
@@ -248,32 +205,110 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		}
 	}
 
+	// Check for existence.
+	_, err = os.Stat(fr.output[track].Path)
+	if err == nil || !os.IsNotExist(err) {
+		if cache.actions[actionExist] != "" {
+			fr.exist.path = fr.output[track].Path
+			err := prepareInput(fr, &fr.exist)
+			if err != nil {
+				return err
+			}
+			prepareTrackTags(&fr.exist, track)
+			err = RunAction(a.L, actionExist, input, output, &fr.exist)
+			if err != nil {
+				fr.error.Printf("Exist action: %s", err)
+				return err
+			}
+		} else {
+			// Don't always call above functions to save the analysis of existing
+			// destination.
+			fr.output[track].Write = "suffix"
+		}
+
+		switch fr.output[track].Write {
+		case existWriteOver:
+			fr.warning.Println("Overwrite existing destination:", fr.output[track].Path)
+		case existWriteSkip:
+			fr.warning.Println("Skip existing destination:", fr.output[track].Path)
+		default:
+			fr.output[track].Write = "suffix"
+			fr.warning.Println("Append suffix to existing destination:", fr.output[track].Path)
+		}
+	} else {
+		fr.output[track].Write = "nonexist"
+	}
+
 	return nil
 }
 
-func prepareTags(fr *FileRecord) {
-	input := &fr.input
-	input.tags = make(map[string]string)
-	input.filetags = make(map[string]string)
+// prepareInput sets the details of 'info' as returned by ffprobe.
+// As a special case, if 'info' is 'fr.input', then 'fr.Format' and
+// 'fr.Streams': those values will be needed later in the pipeline.
+func prepareInput(fr *FileRecord, info *inputInfo) error {
+	cmd := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", "-show_format", info.path)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		fr.error.Print("ffprobe: ", stderr.String())
+		return err
+	}
+
+	err = json.Unmarshal(out, info)
+	if err != nil {
+		fr.error.Print(err)
+		return err
+	}
+
+	// probed need not be initialized since we only use it to temporarily store
+	// the 'Format' and 'Streams' structures returned by 'ffprobe'.
+	var probed FileRecord
+	err = json.Unmarshal(out, &probed)
+	if err != nil {
+		fr.error.Print(err)
+		return err
+	}
+
+	if info == &fr.input {
+		fr.Format = probed.Format
+		fr.Streams = probed.Streams
+	}
+
+	// Index of the first audio stream.
+	info.audioIndex = -1
+	for k, v := range probed.Streams {
+		if v.CodecType == "audio" {
+			info.audioIndex = k
+			break
+		}
+	}
+	if info.audioIndex == -1 {
+		fr.warning.Print("Non-audio file:", info.path)
+		return errNonAudio
+	}
+
+	info.tags = make(map[string]string)
+	info.filetags = make(map[string]string)
 
 	// Precedence: cuesheet > stream tags > format tags.
-	for k, v := range fr.Format.Tags {
-		input.filetags[strings.ToLower(k)] = v
+	for k, v := range probed.Format.Tags {
+		info.filetags[strings.ToLower(k)] = v
 	}
-	for k, v := range fr.Streams[input.audioIndex].Tags {
+	for k, v := range probed.Streams[info.audioIndex].Tags {
 		key := strings.ToLower(k)
-		_, ok := input.filetags[key]
-		if !ok || input.filetags[key] == "" {
-			input.filetags[key] = v
+		_, ok := info.filetags[key]
+		if !ok || info.filetags[key] == "" {
+			info.filetags[key] = v
 		}
 	}
 
-	var err error
 	var ErrCuesheet error
-	input.cuesheet, ErrCuesheet = cuesheet.New(input.filetags["cuesheet"])
+	info.cuesheet, ErrCuesheet = cuesheet.New(info.filetags["cuesheet"])
 	if err != nil {
 		// If no cuesheet was found in the tags, we check for external ones.
-		pathNoext := StripExt(input.path)
+		pathNoext := StripExt(info.path)
 		// Instead of checking the extension of files in current folder, we check
 		// if a file with the 'cue' extension exists. This is faster, especially
 		// for huge folders.
@@ -293,47 +328,63 @@ func prepareTags(fr *FileRecord) {
 				continue
 			}
 
-			input.cuesheet, ErrCuesheet = cuesheet.New(string(buf))
+			info.cuesheet, ErrCuesheet = cuesheet.New(string(buf))
 			break
 		}
 	}
 	// Remove cuesheet from tags to avoid printing it.
-	delete(input.filetags, "cuesheet")
+	delete(info.filetags, "cuesheet")
 
 	// The number of tracks in current file is usually 1, it can be more if a
 	// cuesheet is found.
-	input.trackCount = 1
+	info.trackCount = 1
 	if ErrCuesheet == nil {
 		// Copy the cuesheet header to the tags. Some entries appear both in the
 		// header and in the track details. We map the cuesheet header entries to
 		// the respective quivalent for FFmpeg tags.
-		for k, v := range input.cuesheet.Header {
+		for k, v := range info.cuesheet.Header {
 			switch k {
 			case "PERFORMER":
-				input.filetags["album_artist"] = v
+				info.filetags["album_artist"] = v
 			case "SONGWRITER":
-				input.filetags["album_artist"] = v
+				info.filetags["album_artist"] = v
 			case "TITLE":
-				input.filetags["album"] = v
+				info.filetags["album"] = v
 			default:
-				input.filetags[strings.ToLower(k)] = v
+				info.filetags[strings.ToLower(k)] = v
 			}
 		}
 
 		// A cuesheet might have several FILE entries, or even none (non-standard).
 		// In case of none, tracks are stored at file "" (the empty string) in the
 		// Cuesheet structure. Otherwise, we find the most related file.
-		base := stringNorm(filepath.Base(input.path))
+		base := stringNorm(filepath.Base(info.path))
 		max := 0.0
-		for f := range input.cuesheet.Files {
+		for f := range info.cuesheet.Files {
 			r := stringRel(stringNorm(f), base)
 			if r > max {
 				max = r
-				input.cuesheetFile = f
+				info.cuesheetFile = f
 			}
 		}
-		input.trackCount = len(input.cuesheet.Files[input.cuesheetFile])
+		info.trackCount = len(info.cuesheet.Files[info.cuesheetFile])
 	}
+
+	// Set bitrate.
+	// FFmpeg stores bitrate as a string, Demlo needs a number. If
+	// 'streams[audioIndex].bit_rate' is empty (e.g. in APE files), look for
+	// 'format.bit_rate'. To ease querying bitrate from user scripts, store it
+	// in 'info.bitrate'.
+	info.bitrate, err = strconv.Atoi(probed.Streams[info.audioIndex].Bitrate)
+	if err != nil {
+		info.bitrate, err = strconv.Atoi(probed.Format.Bitrate)
+		if err != nil {
+			fr.warning.Print("Cannot get bitrate from", info.path)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func getEmbeddedCover(fr *FileRecord) {

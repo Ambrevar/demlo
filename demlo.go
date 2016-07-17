@@ -60,7 +60,12 @@ const (
 	// 10M seems to be a reasonable max.
 	cuesheetMaxsize = 10 * 1024 * 1024
 	indexMaxsize    = 10 * 1024 * 1024
-	scriptMaxsize   = 10 * 1024 * 1024
+	codeMaxsize     = 10 * 1024 * 1024
+
+	existWriteOver = "over"
+	existWriteSkip = "skip"
+
+	actionExist = "exist"
 )
 
 var (
@@ -69,6 +74,8 @@ var (
 
 	systemScriptRoot string
 	userScriptRoot   string
+	systemActionRoot string
+	userActionRoot   string
 	config           string
 
 	warning = log.New(os.Stderr, ":: Warning: ", 0)
@@ -81,6 +88,7 @@ var (
 	cache = struct {
 		index   map[string][]outputInfo
 		scripts []scriptBuffer
+		actions map[string]string
 	}{}
 
 	// Options used in the config file and/or as CLI flags.
@@ -90,6 +98,7 @@ var (
 		Color        bool
 		Cores        int
 		Debug        bool
+		Exist        string
 		Extensions   stringSetFlag
 		Getcover     bool
 		Gettags      bool
@@ -112,6 +121,7 @@ type dstCoverKey struct {
 // 'name' is stored for logging.
 type scriptBuffer struct {
 	name string
+	path string
 	buf  string
 }
 
@@ -244,6 +254,7 @@ type outputInfo struct {
 	EmbeddedCovers []outputCover          `lua:"embeddedcovers"`
 	ExternalCovers map[string]outputCover `lua:"externalcovers"`
 	OnlineCover    outputCover            `lua:"onlinecover"`
+	Write          string                 `lua:"write"`
 }
 
 // FileRecord holds the data passed through the pipeline.
@@ -257,6 +268,7 @@ type outputInfo struct {
 //   unwrapped from any interface and thus properly typed.
 type FileRecord struct {
 	input  inputInfo
+	exist  inputInfo
 	output []outputInfo
 
 	Format struct {
@@ -319,6 +331,21 @@ func newFileRecord(path string) *FileRecord {
 	return &fr
 }
 
+// See findScript.
+func findAction(name string) (path string, st os.FileInfo, err error) {
+	path, st, err = findCode(name, ".")
+	if err != nil {
+		path, st, err = findCode(name, userActionRoot)
+	}
+	if err != nil {
+		path, st, err = findCode(name, systemActionRoot)
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("script: %v", err)
+	}
+	return
+}
+
 // findScript returns the path of the first script found with name 'name'.
 // The '.lua' extension is appended in the search if necessary.
 // It looks up, by order of precedence ('.' is the current folder):
@@ -330,6 +357,20 @@ func newFileRecord(path string) *FileRecord {
 // additional command-line parameters. Besides, since scripts are sorted by
 // basename, several identical basenames could lead to an unstable sort order.
 func findScript(name string) (path string, st os.FileInfo, err error) {
+	path, st, err = findCode(name, ".")
+	if err != nil {
+		path, st, err = findCode(name, userScriptRoot)
+	}
+	if err != nil {
+		path, st, err = findCode(name, systemScriptRoot)
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("script: %v", err)
+	}
+	return
+}
+
+func findCode(name, root string) (path string, st os.FileInfo, err error) {
 	names := []string{
 		name,
 		name + ".lua",
@@ -341,20 +382,13 @@ func findScript(name string) (path string, st os.FileInfo, err error) {
 		name + ".LuA",
 		name + ".LUA",
 	}
-	list := make([]string, len(names))
-	copy(list, names)
 	for _, n := range names {
-		list = append(list, filepath.Join(userScriptRoot, n))
-	}
-	for _, n := range names {
-		list = append(list, filepath.Join(systemScriptRoot, n))
-	}
-	for _, path := range list {
+		path := filepath.Join(root, n)
 		if st, err := os.Stat(path); err == nil {
 			return path, st, nil
 		}
 	}
-	return "", nil, fmt.Errorf("script not found: %v", name)
+	return "", nil, fmt.Errorf("not found: %v", name)
 }
 
 func printExtensions() {
@@ -368,7 +402,7 @@ func printExtensions() {
 
 func printScripts() {
 	f := func(name, folder string) {
-		log.Printf("%v script folder: %v", name, folder)
+		log.Printf("%v folder: %v", name, folder)
 		f, err := os.Open(folder)
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -384,11 +418,36 @@ func printScripts() {
 			return
 		}
 		sort.StringSlice(dn).Sort()
-		log.Printf("%v scripts: %q", name, dn)
+		log.Printf("%v: %q", name, dn)
 	}
 
-	f("System", systemScriptRoot)
-	f("User", userScriptRoot)
+	f("System scripts", systemScriptRoot)
+	f("User scripts", userScriptRoot)
+	f("System actions", systemActionRoot)
+	f("User actions", userActionRoot)
+}
+
+func cacheAction(name, path string) {
+	if path == "" {
+		return
+	}
+
+	path, st, err := findAction(path)
+	if err != nil {
+		warning.Print(err)
+		return
+	}
+	if sz := st.Size(); sz > codeMaxsize {
+		warning.Printf("Code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
+		return
+	}
+	buf, err := ioutil.ReadFile(path)
+	if err != nil {
+		warning.Print("Code is not readable: ", err)
+		return
+	}
+	cache.actions[name] = string(buf)
+	log.Printf("Load action %v: %v", name, path)
 }
 
 func cacheScripts() {
@@ -403,21 +462,21 @@ func cacheScripts() {
 			continue
 		}
 		visited[path] = true
-		if sz := st.Size(); sz > scriptMaxsize {
-			warning.Printf("Script size %v > %v bytes, skipping: %v", sz, scriptMaxsize, path)
+		if sz := st.Size(); sz > codeMaxsize {
+			warning.Printf("Code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
 			continue
 		}
 		buf, err := ioutil.ReadFile(path)
 		if err != nil {
-			warning.Print("Script is not readable: ", err)
+			warning.Print("Code is not readable: ", err)
 			continue
 		}
-		cache.scripts = append(cache.scripts, scriptBuffer{name: StripExt(filepath.Base(path)), buf: string(buf)})
+		cache.scripts = append(cache.scripts, scriptBuffer{name: StripExt(filepath.Base(path)), path: path, buf: string(buf)})
 	}
 
 	sort.Sort(scriptBufferSlice(cache.scripts))
 	for _, s := range cache.scripts {
-		log.Printf("Load script: %v", s.name)
+		log.Printf("Load script %v: %v", s.name, s.path)
 	}
 
 	// Enclose the name of the prescript and postscript with '/' so that it cannot conflict with a user script.
@@ -480,6 +539,10 @@ func init() {
 
 	systemScriptRoot = findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
 	userScriptRoot = findInPath(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
+	systemActionRoot = findInPath(XDG_DATA_DIRS, filepath.Join(application, "actions"))
+	userActionRoot = findInPath(XDG_CONFIG_HOME, filepath.Join(application, "actions"))
+
+	cache.actions = make(map[string]string)
 
 	config = os.Getenv("DEMLORC")
 	if config == "" {
@@ -520,13 +583,14 @@ func main() {
 	flag.BoolVar(&options.Color, "color", options.Color, "Color output.")
 	flag.IntVar(&options.Cores, "cores", options.Cores, "Run N processes in parallel. If 0, use all online cores.")
 	flag.BoolVar(&options.Debug, "debug", false, "Enable debug messages.")
+	flag.StringVar(&options.Exist, "exist", options.Exist, "Specify action to run when the destination exists. Warning: overwriting may result in undesired behaviour if destination is part of the input.")
 	flag.Var(&options.Extensions, "ext", "Additional extensions to look for when a folder is browsed.")
 	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet.")
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet.")
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
-	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua commands after the other scripts.")
-	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua commands before the other scripts.")
+	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua code after the other scripts.")
+	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
 	flag.BoolVar(&options.Removesource, "rmsrc", options.Removesource, "Remove source file after processing.")
 
@@ -586,6 +650,7 @@ func main() {
 	printExtensions()
 	printScripts()
 	cacheScripts()
+	cacheAction(actionExist, options.Exist)
 	cacheIndex()
 
 	// Limit number of cores to online cores.

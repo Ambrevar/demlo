@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/md5"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,8 @@ var visitedDstCovers = struct {
 	v map[dstCoverKey]bool
 	sync.RWMutex
 }{v: map[dstCoverKey]bool{}}
+
+var errSkipExisting = errors.New("skip existing file")
 
 // transformer applies the changes resulting from the script run.
 // If the audio stream needs to be transcoded, it calls FFmpeg to apply all the changes.
@@ -188,7 +191,7 @@ func transformStream(fr *FileRecord, track int) error {
 	// Output file.
 	// FFmpeg cannot transcode inplace, so we force creating a temp file if
 	// necessary.
-	dst, isInplace, err := makeTrackDst(output.Path, input.path, false)
+	dst, isInplace, err := makeTrackDst(output.Path, input.path, output.Write, false)
 	if err != nil {
 		fr.error.Print(err)
 		return err
@@ -234,8 +237,11 @@ func transformMetadata(fr *FileRecord, track int) error {
 	input := &fr.input
 	output := &fr.output[track]
 
-	dst, isInplace, err := makeTrackDst(output.Path, input.path, options.Removesource)
-	if err != nil {
+	dst, isInplace, err := makeTrackDst(output.Path, input.path, output.Write, options.Removesource)
+	if err == errSkipExisting {
+		fr.debug.Print(err)
+		return err
+	} else if err != nil {
 		fr.error.Print(err)
 		return err
 	}
@@ -338,7 +344,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 // then modify the file inplace.
 // If no third-party program overwrites existing files, this approach cannot
 // clobber existing files.
-func makeTrackDst(outputPath string, inputPath string, removeSource bool) (dst string, isInplace bool, err error) {
+func makeTrackDst(outputPath string, inputPath string, write string, removeSource bool) (dst string, isInplace bool, err error) {
 	if _, err := os.Stat(outputPath); err == nil || !os.IsNotExist(err) {
 		// 'outputPath' exists.
 		// The realpath is required to see if transformation is inplace.
@@ -352,15 +358,24 @@ func makeTrackDst(outputPath string, inputPath string, removeSource bool) (dst s
 			isInplace = true
 		} else {
 			if !removeSource {
-				// If not inplace, create a temp file.
-				f, err := TempFile(filepath.Dir(dst), StripExt(filepath.Base(dst))+"_", "."+Ext(dst))
-				if err != nil {
-					return "", false, err
+				// If not inplace, do whatever 'write' says.
+				switch write {
+				case existWriteOver:
+					return dst, false, nil
+				case existWriteSkip:
+					return "", false, errSkipExisting
+				default:
+					// Create a tempfile with a suffix appended.
+					f, err := TempFile(filepath.Dir(dst), StripExt(filepath.Base(dst))+"_", "."+Ext(dst))
+					if err != nil {
+						return "", false, err
+					}
+					dst = f.Name()
+					f.Close()
 				}
-				dst = f.Name()
-				f.Close()
 			}
 		}
+
 	} else {
 		// 'outputPath' does not exist.
 		st, err := os.Stat(inputPath)

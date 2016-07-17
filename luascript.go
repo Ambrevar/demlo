@@ -20,9 +20,10 @@ import (
 const (
 	registryWhitelist = "_whitelist"
 	registryScripts   = "_scripts"
+	registryActions   = "_actions"
 )
 
-// goToLua copies Go values to Lua and sets the result to name.
+// goToLua copies Go values to Lua and sets the result to global 'name'.
 // Compound types are deep-copied.
 // Functions are automatically converted to 'func (L *lua.State) int'.
 func goToLua(L *lua.State, name string, val interface{}) {
@@ -97,25 +98,41 @@ func MakeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 		log.Fatal("Failed to set sandbox", err)
 	}
 
+	// Init script table.
+	L.PushString(registryScripts)
+	L.NewTable()
+	L.SetTable(lua.LUA_REGISTRYINDEX)
+
+	// Init action table.
+	L.PushString(registryActions)
+	L.NewTable()
+	L.SetTable(lua.LUA_REGISTRYINDEX)
+
 	return L, nil
 }
 
-// SandboxCompileScripts transfers the script buffer to the Lua state L and
+// SandboxCompileAction is like SandboxCompileScripts.
+func SandboxCompileAction(L *lua.State, name, code string) {
+	sandboxCompile(L, registryActions, name, code)
+}
+
+// SandboxCompileScript transfers the script buffer to the Lua state L and
 // references them in LUA_REGISTRYINDEX.
-func SandboxCompileScripts(L *lua.State, scripts []scriptBuffer) {
-	L.PushString(registryScripts)
-	L.NewTable()
-	for _, script := range scripts {
-		L.PushString(script.name)
-		err := L.LoadString(script.buf)
-		if err != 0 {
-			log.Fatalf("%s: %s", script.name, L.ToString(-1))
-			L.Pop(2)
-		} else {
-			L.SetTable(-3)
-		}
+func SandboxCompileScript(L *lua.State, name, code string) {
+	sandboxCompile(L, registryScripts, name, code)
+}
+
+func sandboxCompile(L *lua.State, registryIndex string, name, code string) {
+	L.PushString(registryIndex)
+	L.GetTable(lua.LUA_REGISTRYINDEX)
+	L.PushString(name)
+	err := L.LoadString(code)
+	if err != 0 {
+		log.Fatalf("%s: %s", name, L.ToString(-1))
+		L.Pop(2)
+	} else {
+		L.SetTable(-3)
 	}
-	L.SetTable(lua.LUA_REGISTRYINDEX)
 }
 
 func outputNumbersToStrings(L *lua.State) {
@@ -147,11 +164,21 @@ func outputNumbersToStrings(L *lua.State) {
 	L.Pop(1)
 }
 
+// RunAction is similar to RunScript.
+func RunAction(L *lua.State, action string, input *inputInfo, output *outputInfo, exist *inputInfo) error {
+	return run(L, registryActions, action, input, output, exist)
+}
+
 // RunScript executes script named 'script' with 'input' and 'output' set as global variable.
 // Any change made to 'input' is discarded. Change to 'output' are transfered
 // back to Go on every script call to guarantee type consistency across script
 // calls (Lua is dynamically typed).
+// 'exist' is optional.
 func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo) error {
+	return run(L, registryScripts, script, input, output, nil)
+}
+
+func run(L *lua.State, registryIndex string, code string, input *inputInfo, output *outputInfo, exist *inputInfo) error {
 	// Restore the sandbox.
 	err := L.DoString(luaRestoreSandbox)
 	if err != nil {
@@ -167,6 +194,10 @@ func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo
 	goToLua(L, "input", *input)
 	goToLua(L, "output", *output)
 
+	if exist != nil {
+		goToLua(L, "existinfo", *exist)
+	}
+
 	// Shortcut (mostly for prescript and postscript).
 	L.GetGlobal("input")
 	L.GetField(-1, "tags")
@@ -178,9 +209,9 @@ func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo
 	L.Pop(1)
 
 	// Call the compiled script.
-	L.PushString(registryScripts)
+	L.PushString(registryIndex)
 	L.GetTable(lua.LUA_REGISTRYINDEX)
-	L.PushString(script)
+	L.PushString(code)
 	if L.IsTable(-2) {
 		L.GetTable(-2)
 		if L.IsFunction(-1) {
@@ -197,7 +228,7 @@ func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo
 	}
 	L.Pop(1)
 
-	// We allow tags to be numbers for convenience.
+	// Allow tags to be numbers for convenience.
 	outputNumbersToStrings(L)
 
 	L.GetGlobal("output")

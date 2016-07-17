@@ -6,6 +6,11 @@ Color = true
 -- Number of cores to use (0 for all).
 Cores = 0
 
+-- Path to 'exist' action, i.e. what to do when destination exists. Set
+-- 'output.write' to "over", "skip", or anything else for appending a random
+-- suffix to the file name.
+Exist = ''
+
 -- Extensions to look for when a folder is browsed. Use default if unset.
 Extensions = {}
 ext = {'aac', 'ape', 'flac', 'm4a', 'mp3', 'mp4', 'mpc', 'ogg', 'wav', 'wv'}
