@@ -136,7 +136,7 @@ func realPathWalk(path string, info os.FileInfo, walkFn filepath.WalkFunc, visit
 	return nil
 }
 
-// EvalSymWalk is like filepath.Walk but follows symlinks.
+// RealPathWalk is like filepath.Walk but follows symlinks.
 func RealPathWalk(root string, walkFn filepath.WalkFunc) error {
 	info, err := os.Lstat(root)
 	if err != nil {

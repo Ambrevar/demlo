@@ -45,6 +45,9 @@ func sandboxRegister(L *lua.State, name string, f interface{}) {
 	L.SetField(-2, name)
 }
 
+// MakeSandbox initializes a Lua state, removes all elements not in the
+// whitelist, sets up the debug function if necessary and adds some Go helper
+// functions.
 // The caller is responsible for closing the Lua state.
 // Add a `defer L.Close()` to the calling code if there is no error.
 func MakeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
@@ -206,6 +209,7 @@ func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo
 	return nil
 }
 
+// LoadConfig parses the Lua file pointed by 'config' and stores it to options.
 func LoadConfig(config string, options interface{}) {
 	L, err := MakeSandbox(log.Println)
 	defer L.Close()

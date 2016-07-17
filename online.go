@@ -67,9 +67,9 @@ var (
 
 	// TODO: Should this be a map[AlbumKey][]Release in case several tracks have
 	// the same AlbumKey but refer to a different album?
-	releaseIDCache = ReleaseIDCache{v: map[AlbumKey]*ReleaseIDEntry{}}
-	tagsCache      = TagsCache{v: map[ReleaseID]*TagsEntry{}}
-	coverCache     = CoverCache{v: map[ReleaseID]*CoverEntry{}}
+	releaseIDCache = ReleaseIDCache{v: map[AlbumKey]*releaseIDEntry{}}
+	tagsCache      = TagsCache{v: map[ReleaseID]*tagsEntry{}}
+	coverCache     = CoverCache{v: map[ReleaseID]*coverEntry{}}
 
 	errMissingCover = errors.New("cover not found")
 	errUnidentAlbum = errors.New("unidentifiable album")
@@ -118,13 +118,18 @@ type RecordingID gomusicbrainz.MBID
 // different countries with varying bonus content have different ReleaseIDs.
 type ReleaseID gomusicbrainz.MBID
 
-type ReleaseIDEntry struct {
+type releaseIDEntry struct {
 	releaseID ReleaseID
 	ready     chan struct{}
 }
 
+// ReleaseIDCache allows to retrieve the ReleaseID of track for a known album,
+// using its AlbumKey, that is, some track metadata. It saves the need for
+// fingerprinting and the AcoustID query.
+// The cache can be accessed concurrently. The chan is an memoization idiom that
+// allows for duplicate suppression in queries.
 type ReleaseIDCache struct {
-	v map[AlbumKey]*ReleaseIDEntry
+	v map[AlbumKey]*releaseIDEntry
 	sync.Mutex
 }
 
@@ -141,7 +146,7 @@ func (c *ReleaseIDCache) get(albumKey AlbumKey, fr *FileRecord) (ReleaseID, Reco
 	if e == nil {
 		fr.debug.Print("Fetch new releaseID for uncached albumKey")
 
-		e = &ReleaseIDEntry{ready: make(chan struct{})}
+		e = &releaseIDEntry{ready: make(chan struct{})}
 		c.v[albumKey] = e
 		c.Unlock()
 
@@ -178,7 +183,7 @@ func (c *ReleaseIDCache) get(albumKey AlbumKey, fr *FileRecord) (ReleaseID, Reco
 			c.Lock()
 			fr.debug.Print("Add non-exact match to release cache")
 			ready := make(chan struct{})
-			c.v[albumKey] = &ReleaseIDEntry{releaseID: e.releaseID, ready: ready}
+			c.v[albumKey] = &releaseIDEntry{releaseID: e.releaseID, ready: ready}
 			close(ready)
 			c.Unlock()
 		}
@@ -189,7 +194,7 @@ func (c *ReleaseIDCache) get(albumKey AlbumKey, fr *FileRecord) (ReleaseID, Reco
 
 // Warning: not concurrent-safe, caller must mutex the call.
 // We look for exact matches first to speed-up the process.
-func (c *ReleaseIDCache) fuzzyMatch(albumKey AlbumKey) (r *ReleaseIDEntry, exactMatch bool) {
+func (c *ReleaseIDCache) fuzzyMatch(albumKey AlbumKey) (r *releaseIDEntry, exactMatch bool) {
 	r = c.v[albumKey]
 	if r != nil {
 		return r, true
@@ -237,14 +242,16 @@ type Tags struct {
 	recordings  map[RecordingID]Recording
 }
 
-// The chan is an memoization idiom that allows for duplicate suppression in
-// queries.
-type TagsEntry struct {
+type tagsEntry struct {
 	tags  Tags
 	ready chan struct{}
 }
+
+// TagsCache is used to retrieve tags of a track for a known album. It saves a
+// MusicBrainz query.
+// See ReleaseIDCache.
 type TagsCache struct {
-	v map[ReleaseID]*TagsEntry
+	v map[ReleaseID]*tagsEntry
 	sync.Mutex
 }
 
@@ -260,7 +267,7 @@ func (c *TagsCache) get(releaseID ReleaseID, albumKey AlbumKey, fr *FileRecord, 
 	if e == nil {
 		fr.debug.Print("Fetch new tags for uncached releaseID")
 
-		e = &TagsEntry{ready: make(chan struct{})}
+		e = &tagsEntry{ready: make(chan struct{})}
 		c.v[releaseID] = e
 		c.Unlock()
 
@@ -283,14 +290,15 @@ type Cover struct {
 	desc    inputCover
 }
 
-// See TagsEntry description.
-type CoverEntry struct {
+type coverEntry struct {
 	cover Cover
 	ready chan struct{}
 }
 
+// CoverCache is like TagsCache.
+// Also see ReleaseIDCache.
 type CoverCache struct {
-	v map[ReleaseID]*CoverEntry
+	v map[ReleaseID]*coverEntry
 	sync.Mutex
 }
 
@@ -303,7 +311,7 @@ func (c *CoverCache) get(releaseID ReleaseID, fr *FileRecord) (*Cover, error) {
 	if e == nil {
 		fr.debug.Print("Fetch new cover for uncached releaseID")
 
-		e = &CoverEntry{ready: make(chan struct{})}
+		e = &coverEntry{ready: make(chan struct{})}
 		c.v[releaseID] = e
 		c.Unlock()
 
@@ -594,6 +602,9 @@ func queryCover(releaseID ReleaseID) (Cover, error) {
 	return cover, nil
 }
 
+// GetOnlineTags retrieves tags from MusicBrainz.
+// It also returns the ReleaseID of the track which can be used with
+// 'GetOnlineCover' to speed up the process.
 func GetOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 	fr.debug.Printf("Get tags")
 
@@ -698,7 +709,7 @@ func GetOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 	return releaseID, result, nil
 }
 
-// See 'getOnlineTags' comments.
+// GetOnlineCover is like GetOnlineTags.
 func GetOnlineCover(fr *FileRecord, releaseID ReleaseID) (picture []byte, desc inputCover, err error) {
 	fr.debug.Printf("Get cover (releaseID = %q)", releaseID)
 
