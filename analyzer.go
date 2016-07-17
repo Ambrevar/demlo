@@ -211,9 +211,9 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	// Create a Lua sandbox containing input and output, then run scripts.
 	a.scriptLog.SetOutput(&fr.logBuf)
 	for _, script := range cache.scripts {
-		err := RunScript(a.L, script.path, input, output)
+		err := RunScript(a.L, script.name, input, output)
 		if err != nil {
-			fr.error.Printf("Script %s: %s", StripExt(filepath.Base(script.path)), err)
+			fr.error.Printf("Script %s: %s", script.name, err)
 			return err
 		}
 	}

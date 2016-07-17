@@ -110,9 +110,9 @@ type dstCoverKey struct {
 }
 
 // scriptBuffer holds a script in memory.
-// 'path' is stored for logging.
+// 'name' is stored for logging.
 type scriptBuffer struct {
-	path string
+	name string
 	buf  string
 }
 
@@ -122,7 +122,7 @@ type scriptBufferSlice []scriptBuffer
 
 func (s scriptBufferSlice) Len() int { return len(s) }
 func (s scriptBufferSlice) Less(i, j int) bool {
-	return filepath.Base(s[i].path) < filepath.Base(s[j].path)
+	return s[i].name < s[j].name
 }
 func (s scriptBufferSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
@@ -402,19 +402,20 @@ func cacheScripts() {
 			warning.Print("Script is not readable: ", err)
 			continue
 		}
-		cache.scripts = append(cache.scripts, scriptBuffer{path: path, buf: string(buf)})
+		cache.scripts = append(cache.scripts, scriptBuffer{name: StripExt(filepath.Base(path)), buf: string(buf)})
 	}
 
 	sort.Sort(scriptBufferSlice(cache.scripts))
 	for _, s := range cache.scripts {
-		log.Printf("Load script: %v", s.path)
+		log.Printf("Load script: %v", s.name)
 	}
 
+	// Enclose the name of the prescript and postscript with '/' so that it cannot conflict with a user script.
 	if options.Prescript != "" {
-		cache.scripts = append([]scriptBuffer{{path: "prescript", buf: options.Prescript}}, cache.scripts...)
+		cache.scripts = append([]scriptBuffer{{name: "/prescript/", buf: options.Prescript}}, cache.scripts...)
 	}
 	if options.Postscript != "" {
-		cache.scripts = append(cache.scripts, scriptBuffer{path: "postscript", buf: options.Postscript})
+		cache.scripts = append(cache.scripts, scriptBuffer{name: "/postscript/", buf: options.Postscript})
 	}
 }
 

@@ -103,10 +103,10 @@ func SandboxCompileScripts(L *lua.State, scripts []scriptBuffer) {
 	L.PushString(registryScripts)
 	L.NewTable()
 	for _, script := range scripts {
-		L.PushString(script.path)
+		L.PushString(script.name)
 		err := L.LoadString(script.buf)
 		if err != 0 {
-			log.Fatalf("%s: %s", script.path, L.ToString(-1))
+			log.Fatalf("%s: %s", script.name, L.ToString(-1))
 			L.Pop(2)
 		} else {
 			L.SetTable(-3)
