@@ -60,7 +60,7 @@ path, the encoding parameters, and so on.
 - When applying changes, the covers get copied if required and the audio file
 gets processed: tags are modified as specified, the file is re-encoded if
 required, and the output is written to the appropriate folder. When destination
-already exists, a random suffix is added to the filename.
+already exists, the 'exist' action is executed.
 
 
 
@@ -109,6 +109,29 @@ size data (e.g. tables). Data could grow big and slow down the program.
 
 
 
+Existing destination
+
+By default, when the destination exists, Demlo will append a suffix to the
+output destination. This behaviour can be changed from the 'exist' action
+specified by the user. Demlo comes with a few default actions.
+
+An additional variable is accessible from the action: 'existinfo' holds the file
+details of the existing files in the same fashion as 'input'. This allows for
+comparing the input file and the existing destination.
+
+The writing rules can be tweaked the following way:
+
+	output.write = 'skip' // Skip current file.
+	output.write = 'over' // Overwrite existing destination.
+	output.write = '' // Anything else: append random suffix (default)
+
+Word of caution: overwriting breaks Demlo's rule of not altering existing files.
+It can lead to undesired results if the overwritten file is also part of the
+(yet to be processed) input. The overwrite capability can be useful when syncing
+music libraries however.
+
+
+
 Runtime code
 
 The user scripts should be generic. Therefore they may not properly handle some
@@ -133,6 +156,10 @@ The 'input' table describes the file:
 	   path = '/real/path',
 	   bitrate = 0,
 	   tags = {},
+	   time = {
+	      sec = 0,
+	      nsec = 0,
+	   }
 	   audioindex = 0,
 	   streams = {},
 	   format = {},
@@ -144,10 +171,12 @@ The 'input' table describes the file:
 Bitrate is in bits per seconds (bps). That is, for 320 kbps you would specify
 	output.bitrate = 320000
 
+The 'time' is the modification time of the file. It holds the sec seconds and
+nsec nanoseconds since January 1, 1970 UTC.
+
 The entry 'streams' and 'format' are as returned by
 	ffprobe -v quiet -print_format json -show_streams -show_format $file
-
-If gives access to most metadata that FFmpeg can return. For instance, to get
+It gives access to most metadata that FFmpeg can return. For instance, to get
 the duration of the track in seconds, query the variable
 'input.format.duration'.
 
@@ -175,6 +204,7 @@ The 'output' table describes the transformation to apply to the file:
 	   embeddedcovers = {},
 	   externalcovers = {},
 	   onlinecover = {},
+	   write = '',
 	}
 
 The 'parameters' array holds the CLI parameters passed to FFmpeg. It can be
@@ -183,6 +213,8 @@ encoding information. See the 'Examples' section.
 
 The 'embeddedcovers', 'externalcovers' and 'onlinecover' variables are detailed
 in the 'Covers' section.
+
+The 'write' variable is covered in the 'Existing destination' section.
 
 For convenience, the following shortcuts are provided:
 	i = input.tags
@@ -213,7 +245,7 @@ A format is a container in FFmpeg's terminology.
 'output.parameters' contains CLI flags passed to FFmpeg. They are meant to set
 the stream codec, the bitrate, etc.
 
-If 'output.parameters' is {"-c:a", "copy"} and the format is identical, then
+If 'output.parameters' is {'-c:a', 'copy'} and the format is identical, then
 taglib will be used instead of FFmpeg. Use this rule from a (post)script to
 disable encoding by setting the same format and the copy parameters. This speeds
 up the process.
@@ -224,9 +256,8 @@ Preview
 
 The official scripts are usually very smart at guessing the right values. They
 might make mistakes however. If you are unsure, you can (and you are advised to)
-preview the results before proceeding. The 'diff' preview is printed to stderr
-but disabled if stderr is redirected. A JSON preview of the changes is printed
-to stdout if stdout is redirected.
+preview the results before proceeding. The 'diff' preview is printed to stderr.
+A JSON preview of the changes is printed to stdout if stdout is redirected.
 
 
 Internet service
@@ -281,7 +312,7 @@ existing index files. Demlo will automatically complete the missing parts so
 that it becomes valid JSON.
 
 The index file is useful when you want to edit tags manually: You can redirect
-the output to a file, edit the content manually with you favorite text editor,
+the output to a file, edit the content manually with your favorite text editor,
 then run Demlo again with the index as argument. See the 'Examples' section.
 
 This feature can also be used to interface Demlo with other programs.
@@ -301,7 +332,7 @@ Covers are accessed from
 		[<cover index>] = inputcover
 	}
 	input.externalcovers = {
-		["cover basename"] = inputcover
+		['cover basename'] = inputcover
 	}
 	input.onlinecover = inputcover
 
@@ -312,10 +343,10 @@ the index of the stream.
 'inputcover' is the following structure:
 
 	{
-		format '', -- e.g. 'gif', 'jpeg', 'png'.
-		width 0,
-		height 0,
-		checksum '00000000000000000000000000000000', -- md5 sum.
+		format = '', -- (Can be any of 'gif', 'jpeg', 'png'.)
+		width = 0,
+		height = 0,
+		checksum = '00000000000000000000000000000000', -- md5 sum.
 	}
 
 'format' is the picture format. FFmpeg makes a distinction between format and
@@ -335,15 +366,15 @@ Cover transformations are specified in
 		[<cover index>] = outputcover
 	}
 	output.externalcovers = {
-		["cover basename"] = outputcover
+		['cover basename'] = outputcover
 	}
 	output.onlinecover = outputcover
 
 'outputcover' has the following structure:
 
 	{
-		path 'full/path/with.ext',
-		format '', -- e.g. 'mjpeg'.
+		path = 'full/path/with.ext',
+		format = '', -- e.g. 'mjpeg', 'png'.
 		parameters = {},
 	}
 
@@ -385,12 +416,12 @@ Show default options:
 Preview changes made by the default scripts:
 	demlo audio.file
 
-Use 'alternate' script if found in user or system script folder:
+Use 'alternate' script if found in user or system script folder (user folder first):
 	demlo -s alternate audio.file
 
 Add the Lua file to the list of scripts. This feature is convenient if you want
 to write scripts that are too complex to fit on the command-line, but not
-generic enough to fit the user/system script folders.
+generic enough to fit the user or system script folders.
 	demlo -s path/to/local/script.lua audio.file
 
 Remove all script from the list, then add '30-case' and '60-path' scripts. Note
@@ -436,7 +467,7 @@ change in tags would occur later on, it would not affect the renaming script.
 Retrieve tags from Internet:
 	demlo -t audio.file
 
-Same as above but for a whole album, and saving the result in an index:
+Same as above but for a whole album, and saving the result to an index:
 	demlo -t album/*.ogg > album-index.json
 
 Download cover for the album corresponding to the track. Use -rmsrc to avoid
@@ -457,6 +488,8 @@ To easily switch between formats from command-line, create one script per format
 Add support for non-default formats from CLI:
 	demlo -ext webm -pre 'output.format="webm"' audio.webm
 
+Overwrite existing destination if input is newer:
+	demlo -exist writenewer audio.file
 
 
 See also
