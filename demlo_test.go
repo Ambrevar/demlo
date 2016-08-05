@@ -219,7 +219,7 @@ func TestFFmpegSplitTimes(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	sheet, err := cuesheet.New(string(buf))
+	sheet, err := cuesheet.New(buf)
 	if err != nil {
 		panic(err)
 	}

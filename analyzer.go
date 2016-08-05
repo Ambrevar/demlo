@@ -314,7 +314,7 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 	}
 
 	var ErrCuesheet error
-	info.cuesheet, ErrCuesheet = cuesheet.New(info.filetags["cuesheet"])
+	info.cuesheet, ErrCuesheet = cuesheet.New([]byte(info.filetags["cuesheet"]))
 	if err != nil {
 		// If no cuesheet was found in the tags, we check for external ones.
 		pathNoext := StripExt(info.path)
@@ -337,7 +337,7 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 				continue
 			}
 
-			info.cuesheet, ErrCuesheet = cuesheet.New(string(buf))
+			info.cuesheet, ErrCuesheet = cuesheet.New(buf)
 			break
 		}
 	}

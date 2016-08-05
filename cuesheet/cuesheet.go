@@ -53,15 +53,15 @@ type Cuesheet struct {
 
 // New initializes a cuesheet from a string.
 // It does not take a path as argument since cuesheets can be found in tags.
-func New(cuesheet string) (Cuesheet, error) {
+func New(cuesheet []byte) (Cuesheet, error) {
 	var sheet Cuesheet
-	if cuesheet == "" {
+	if len(cuesheet) == 0 {
 		return sheet, errors.New("empty cuesheet")
 	}
 
 	// TODO: Reader/Scanner is a bit heavy. Use simpler parser, e.g. with
 	// 'strings' functions.
-	b := bytes.NewReader([]byte(cuesheet))
+	b := bytes.NewReader(cuesheet)
 	s := bufio.NewScanner(b)
 
 	header := true
