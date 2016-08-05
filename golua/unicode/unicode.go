@@ -4,6 +4,13 @@
 // Package unicode adds unicode support to some functions in golua's string
 // library. Lua patterns are replaced by Go regexps. See
 // https://github.com/google/re2/wiki/Syntax.
+//
+// Use 'GoLuaReplaceFuncs' to register the new functions. It is also possible to
+// replace only a subset of those functions manually, or to register these
+// functions to a table other than 'string'.
+//
+// For the full specification of the functions, see
+// http://www.lua.org/manual/5.1/manual.html#5.4.
 package unicode
 
 import (
@@ -77,6 +84,52 @@ func lua2go_endindex(j, length int) int {
 	return j
 }
 
+// Find looks for the first match of pattern in the string s.
+func Find(L *lua.State) int {
+	str := L.CheckString(1)
+	pattern := L.CheckString(2)
+	init := L.OptInteger(3, 0)
+	init = luaToGoStartIndex(init, len(str))
+
+	if init > len(str) {
+		L.PushNil()
+		return 1
+	}
+	str = str[init:]
+
+	plain := false
+	if L.GetTop() >= 4 {
+		if !L.IsNil(4) {
+			plain = true
+		}
+	}
+
+	if plain {
+		pos := strings.Index(str, pattern)
+		if pos < 0 {
+			L.PushNil()
+			return 1
+		}
+		L.PushInteger(int64(init + pos + 1))
+		L.PushInteger(int64(init + pos + len(pattern)))
+		return 2
+	}
+
+	re := regexpQuery(L, pattern)
+
+	positions := re.FindStringSubmatchIndex(str)
+	if len(positions) == 0 {
+		L.PushNil()
+		return 1
+	}
+	L.PushInteger(int64(init + positions[0] + 1))
+	L.PushInteger(int64(init + positions[1]))
+	for n := 1; n < len(positions)/2; n++ {
+		L.PushString(str[positions[2*n]:positions[2*n+1]])
+	}
+	return 1 + len(positions)/2
+}
+
 // Iterator function for Gmatch.
 // Do not register this function.
 // Iterator invariant state: {pos=N, matches={{captures...}, ...}}
@@ -127,6 +180,9 @@ func gmatchAux(L *lua.State) int {
 	return count
 }
 
+// Gmatch returns an iterator function that, each time it is called, returns the
+// next captures from pattern over string s. If pattern specifies no captures,
+// then the whole match is produced in each call.
 func Gmatch(L *lua.State) int {
 	str := L.CheckString(1)
 	pattern := L.CheckString(2)
@@ -175,6 +231,10 @@ func Gmatch(L *lua.State) int {
 	return 2
 }
 
+// Gsub returns a copy of s in which all (or the first n, if given) occurrences
+// of the pattern have been replaced by a replacement string specified by repl,
+// which can be a string, a table, or a function. gsub also returns, as its
+// second value, the total number of matches that occurred.
 func Gsub(L *lua.State) int {
 	str := L.CheckString(1)
 	pattern := L.CheckString(2)
@@ -258,68 +318,27 @@ func Gsub(L *lua.State) int {
 	return 2
 }
 
-func Find(L *lua.State) int {
-	str := L.CheckString(1)
-	pattern := L.CheckString(2)
-	init := L.OptInteger(3, 0)
-	init = lua2go_startindex(init, len(str))
-
-	if init > len(str) {
-		L.PushNil()
-		return 1
-	}
-	str = str[init:]
-
-	plain := false
-	if L.GetTop() >= 4 {
-		if !L.IsNil(4) {
-			plain = true
-		}
-	}
-
-	if plain {
-		pos := strings.Index(str, pattern)
-		if pos < 0 {
-			L.PushNil()
-			return 1
-		}
-		L.PushInteger(int64(init + pos + 1))
-		L.PushInteger(int64(init + pos + len(pattern)))
-		return 2
-	}
-
-	re := regexpQuery(L, pattern)
-
-	positions := re.FindStringSubmatchIndex(str)
-	if len(positions) == 0 {
-		L.PushNil()
-		return 1
-	}
-	L.PushInteger(int64(init + positions[0] + 1))
-	L.PushInteger(int64(init + positions[1]))
-	for n := 1; n < len(positions)/2; n++ {
-		L.PushString(str[positions[2*n]:positions[2*n+1]])
-	}
-	return 1 + len(positions)/2
-}
-
+// Len receives a string and returns its length.
 func Len(L *lua.State) int {
 	str := L.CheckString(1)
 	L.PushInteger(int64(len([]rune(str))))
 	return 1
 }
 
+// Lower receives a string and returns a copy of this string with all uppercase
+// letters changed to lowercase.
 func Lower(L *lua.State) int {
 	str := L.CheckString(1)
 	L.PushString(strings.ToLower(str))
 	return 1
 }
 
+// Match looks for the first match of pattern in the string s.
 func Match(L *lua.State) int {
 	str := L.CheckString(1)
 	pattern := L.CheckString(2)
 	init := L.OptInteger(3, 0)
-	init = lua2go_startindex(init, len(str))
+	init = luaToGoStartIndex(init, len(str))
 
 	if init > len(str) {
 		L.PushNil()
@@ -344,6 +363,7 @@ func Match(L *lua.State) int {
 	return len(captures) - 1
 }
 
+// Reverse returns a string that is the string s reversed.
 func Reverse(L *lua.State) int {
 	str := L.CheckString(1)
 	runes := []rune(str)
@@ -354,6 +374,9 @@ func Reverse(L *lua.State) int {
 	return 1
 }
 
+// Sub returns the substring of s that starts at i and continues until j; i and
+// j can be negative. I
+//
 // For Go slices, indices must be positive, start at 0, and the second index is
 // excluded.
 func Sub(L *lua.State) int {
@@ -370,16 +393,16 @@ func Sub(L *lua.State) int {
 	return 1
 }
 
+// Upper receives a string and returns a copy of this string with all lowercase
+// letters changed to uppercase.
 func Upper(L *lua.State) int {
 	str := L.CheckString(1)
 	L.PushString(strings.ToUpper(str))
 	return 1
 }
 
-// Helper function to replace all supported functions from Lua's 'string'
-// library with their unicode counterpart. It is also possible to replace only a
-// subset of those functions manually, or to these functions to a table other
-// than 'string'.
+// GoLuaReplaceFuncs is a helper to replace all supported functions from Lua's
+// 'string' library with their unicode counterpart.
 func GoLuaReplaceFuncs(L *lua.State) {
 	var list = []struct {
 		name string

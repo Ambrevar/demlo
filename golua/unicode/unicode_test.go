@@ -4,6 +4,7 @@
 package unicode
 
 // TODO: Add tests for Gmatch.
+// TODO: Split tests.
 
 import (
 	"os"
