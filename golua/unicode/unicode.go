@@ -426,3 +426,10 @@ func GoLuaReplaceFuncs(L *lua.State) {
 		L.Pop(1)
 	}
 }
+
+// FlushRegexpCache resets the global regexp cache.
+func FlushRegexpCache() {
+	regexpCache.Lock()
+	regexpCache.v = map[string]*entry{}
+	regexpCache.Unlock()
+}
