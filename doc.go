@@ -426,13 +426,13 @@ generic enough to fit the user or system script folders.
 
 Remove all script from the list, then add '30-case' and '60-path' scripts. Note
 that '30-case' will be run before '60-path'.
-	demlo -r '' -s '60-path' -s '30-case' audio.file
+	demlo -r '' -s 60-path -s 30-case audio.file
 
 Do not use any script but '60-path'. The file content is unchanged and the file
 is renamed to a dynamically computed destination. Demlo performs an instant
 rename if destination is on the same device. Otherwise it copies the file and
 removes the source.
-	demlo -rmsrc -r '' -s '60-path' audio.file
+	demlo -rmsrc -r '' -s 60-path audio.file
 
 Use the default scripts (if set in configuration file), but do not re-encode:
 	demlo -post 'output.format=input.format; output.parameters={"-c:a","copy"}' audio.file
@@ -472,7 +472,7 @@ Same as above but for a whole album, and saving the result to an index:
 
 Download cover for the album corresponding to the track. Use -rmsrc to avoid
 duplicating the audio file.
-	demlo -rmsrc -c -s '70-cover' album/track
+	demlo -rmsrc -c -s 70-cover album/track
 
 Change tags inplace with entries from MusicBrainz:
 	demlo -t -r '' album/*

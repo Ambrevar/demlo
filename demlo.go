@@ -51,6 +51,10 @@ New extensions can be specified from command-line.
 All flags that do not require an argument are booleans. Without argument, they
 take the true value. To negate them, use the form '-flag=false'.
 
+When specifying a script or action file, if the name contains a path separator,
+then the path is looked up directly. Else, the name with and without extension
+is searched in the user folder and then in the system folder.
+
 See ` + URL + ` for more details.
 `
 
@@ -72,11 +76,7 @@ var (
 	XDG_CONFIG_HOME = os.Getenv("XDG_CONFIG_HOME")
 	XDG_DATA_DIRS   = os.Getenv("XDG_DATA_DIRS")
 
-	systemScriptRoot string
-	userScriptRoot   string
-	systemActionRoot string
-	userActionRoot   string
-	config           string
+	config string
 
 	warning = log.New(os.Stderr, ":: Warning: ", 0)
 
@@ -86,9 +86,11 @@ var (
 	}{false, true}
 
 	cache = struct {
-		index   map[string][]outputInfo
-		scripts []scriptBuffer
-		actions map[string]string
+		index       map[string][]outputInfo
+		scripts     []scriptBuffer
+		actions     map[string]string
+		scriptFiles map[string]string
+		actionFiles map[string]string
 	}{}
 
 	// Options used in the config file and/or as CLI flags.
@@ -336,59 +338,18 @@ func newFileRecord(path string) *FileRecord {
 	return &fr
 }
 
-// See findScript.
-func findAction(name string) (path string, st os.FileInfo, err error) {
-	path, st, err = findCode(name, ".")
-	if err != nil {
-		path, st, err = findCode(name, userActionRoot)
+// findCode returns the path of the first code file found with name 'name'. If
+// 'name' contains a folder separator, then this path is loaded. Otherwise, the
+// file is looked up in the user folder, then the system folder.
+func findCode(name string, fileList map[string]string) (path string, st os.FileInfo, err error) {
+	if strings.ContainsRune(name, os.PathSeparator) {
+		if st, err := os.Stat(name); err == nil {
+			return name, st, nil
+		}
+		return "", nil, fmt.Errorf("not found: %v", name)
 	}
-	if err != nil {
-		path, st, err = findCode(name, systemActionRoot)
-	}
-	if err != nil {
-		return "", nil, fmt.Errorf("script: %v", err)
-	}
-	return
-}
 
-// findScript returns the path of the first script found with name 'name'.
-// The '.lua' extension is appended in the search if necessary.
-// It looks up, by order of precedence ('.' is the current folder):
-//
-//   . > userScriptRoot > systemScriptRoot
-//
-// A script name from the config file can target a file found in current folder.
-// This choice makes it possible to replace a system/user script without
-// additional command-line parameters. Besides, since scripts are sorted by
-// basename, several identical basenames could lead to an unstable sort order.
-func findScript(name string) (path string, st os.FileInfo, err error) {
-	path, st, err = findCode(name, ".")
-	if err != nil {
-		path, st, err = findCode(name, userScriptRoot)
-	}
-	if err != nil {
-		path, st, err = findCode(name, systemScriptRoot)
-	}
-	if err != nil {
-		return "", nil, fmt.Errorf("script: %v", err)
-	}
-	return
-}
-
-func findCode(name, root string) (path string, st os.FileInfo, err error) {
-	names := []string{
-		name,
-		name + ".lua",
-		name + ".lUa",
-		name + ".luA",
-		name + ".lUA",
-		name + ".Lua",
-		name + ".LUa",
-		name + ".LuA",
-		name + ".LUA",
-	}
-	for _, n := range names {
-		path := filepath.Join(root, n)
+	if path, ok := fileList[name]; ok {
 		if st, err := os.Stat(path); err == nil {
 			return path, st, nil
 		}
@@ -405,8 +366,11 @@ func printExtensions() {
 	log.Printf("Register extensions: %v", strings.Join(extlist, " "))
 }
 
-func printScripts() {
-	f := func(name, folder string) {
+// When the extension is not specified on command-line and several files share
+// the same basename (extension excluded), then the last file of the
+// alphabetically-sorted list of files will be chosen.
+func listCode() {
+	list := func(name, folder string, fileList map[string]string) {
 		log.Printf("%v folder: %v", name, folder)
 		f, err := os.Open(folder)
 		if err != nil {
@@ -424,12 +388,36 @@ func printScripts() {
 		}
 		sort.StringSlice(dn).Sort()
 		log.Printf("%v: %q", name, dn)
+
+		for _, v := range dn {
+			fileList[StripExt(v)] = filepath.Join(folder, v)
+			fileList[v] = filepath.Join(folder, v)
+		}
 	}
 
-	f("System scripts", systemScriptRoot)
-	f("User scripts", userScriptRoot)
-	f("System actions", systemActionRoot)
-	f("User actions", userActionRoot)
+	findInPath := func(pathlist, subpath string) string {
+		for _, dir := range filepath.SplitList(pathlist) {
+			if dir == "" {
+				dir = "."
+			}
+			file := filepath.Join(dir, subpath)
+			_, err := os.Stat(file)
+			if err == nil {
+				return file
+			}
+		}
+		return ""
+	}
+
+	systemScriptRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
+	userScriptRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
+	systemActionRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "actions"))
+	userActionRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, "actions"))
+
+	list("System scripts", systemScriptRoot, cache.scriptFiles)
+	list("User scripts", userScriptRoot, cache.scriptFiles)
+	list("System actions", systemActionRoot, cache.actionFiles)
+	list("User actions", userActionRoot, cache.actionFiles)
 }
 
 func cacheAction(name, path string) {
@@ -437,7 +425,7 @@ func cacheAction(name, path string) {
 		return
 	}
 
-	path, st, err := findAction(path)
+	path, st, err := findCode(path, cache.actionFiles)
 	if err != nil {
 		warning.Print(err)
 		return
@@ -458,7 +446,7 @@ func cacheAction(name, path string) {
 func cacheScripts() {
 	visited := map[string]bool{}
 	for _, s := range options.Scripts {
-		path, st, err := findScript(s)
+		path, st, err := findCode(s, cache.scriptFiles)
 		if err != nil {
 			warning.Print(err)
 			continue
@@ -528,26 +516,9 @@ func init() {
 		XDG_DATA_DIRS = "/usr/local/share/:/usr/share"
 	}
 
-	findInPath := func(pathlist, subpath string) string {
-		for _, dir := range filepath.SplitList(pathlist) {
-			if dir == "" {
-				dir = "."
-			}
-			file := filepath.Join(dir, subpath)
-			_, err := os.Stat(file)
-			if err == nil {
-				return file
-			}
-		}
-		return ""
-	}
-
-	systemScriptRoot = findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
-	userScriptRoot = findInPath(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
-	systemActionRoot = findInPath(XDG_DATA_DIRS, filepath.Join(application, "actions"))
-	userActionRoot = findInPath(XDG_CONFIG_HOME, filepath.Join(application, "actions"))
-
 	cache.actions = make(map[string]string)
+	cache.actionFiles = make(map[string]string)
+	cache.scriptFiles = make(map[string]string)
 
 	config = os.Getenv("DEMLORC")
 	if config == "" {
@@ -600,9 +571,7 @@ func main() {
 	flag.BoolVar(&options.Removesource, "rmsrc", options.Removesource, "Remove source file after processing.")
 
 	sFlag := scriptAddFlag{&options.Scripts}
-	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order.
-    	This option can be specified several times. The path and the extension can be omitted.
-    	The current folder, the user script folder and the system script folder are search in this order.`)
+	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order. This option can be specified several times.`)
 
 	rFlag := scriptRemoveFlag{&options.Scripts}
 	flag.Var(&rFlag, "r", `Remove scripts where the regexp matches a part of the basename.
@@ -653,7 +622,7 @@ func main() {
 	}
 
 	printExtensions()
-	printScripts()
+	listCode()
 	cacheScripts()
 	cacheAction(actionExist, options.Exist)
 	cacheIndex()
