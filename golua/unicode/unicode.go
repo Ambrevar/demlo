@@ -60,7 +60,7 @@ func regexpQuery(L *lua.State, pattern string) *regexp.Regexp {
 }
 
 // Warning: The result can be > len(s).
-func lua2go_startindex(i, length int) int {
+func luaToGoStartIndex(i, length int) int {
 	if i > 0 {
 		i--
 	} else if i < 0 {
@@ -72,7 +72,7 @@ func lua2go_startindex(i, length int) int {
 	return i
 }
 
-func lua2go_endindex(j, length int) int {
+func luaToGoEndIndex(j, length int) int {
 	if j > length {
 		j = length
 	} else if j < 0 {
@@ -382,8 +382,8 @@ func Reverse(L *lua.State) int {
 func Sub(L *lua.State) int {
 	runes := []rune(L.CheckString(1))
 
-	i := lua2go_startindex(L.CheckInteger(2), len(runes))
-	j := lua2go_endindex(L.OptInteger(3, len(runes)), len(runes))
+	i := luaToGoStartIndex(L.CheckInteger(2), len(runes))
+	j := luaToGoEndIndex(L.OptInteger(3, len(runes)), len(runes))
 
 	if j <= i {
 		L.PushString("")
