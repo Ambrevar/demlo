@@ -3,8 +3,6 @@
 
 package unicode
 
-// TODO: Add tests for Gmatch.
-
 import (
 	"os"
 	"testing"
@@ -65,6 +63,63 @@ func TestFind(t *testing.T) {
 		{code: `string.find('aaa', 'a*')`, result: []string{"1", "3"}},
 	}
 	luaTest(t, tdt)
+}
+
+func TestGmatch(t *testing.T) {
+	tdt := []testEntry{
+		{code: `
+s = "hello world from Lua"
+for w in s:gmatch("\\w+") do
+result[#result+1]=w
+end`, result: []string{"hello", "world", "from", "Lua"}},
+		{code: `
+s = "from=world, to=Lua"
+for k, v in s:gmatch("(\\w+)=(\\w+)") do
+result[#result+1]=k
+result[#result+1]=v
+end
+`, result: []string{"from", "world", "to", "Lua"}},
+		{code: `
+s = "^Lua"
+for w in s:gmatch("^Lua") do
+result[#result+1]=w
+end
+`, result: []string{"^Lua"}},
+		{code: `
+s = "foo"
+for w in s:gmatch("\\d+") do
+result[#result+1]=w
+end
+`, result: []string{}},
+	}
+
+	for _, want := range tdt {
+		err := L.DoString("result = {};" + want.code)
+		if err != nil {
+			t.Fatal("Error in test data")
+		}
+		L.GetGlobal("result")
+		count := 0
+		for i := 1; ; i++ {
+			L.PushInteger(int64(i))
+			L.GetTable(-2)
+			if L.IsNil(-1) {
+				break
+			}
+			if i > len(want.result) {
+				t.Fatalf("Got at least %v results, want %v", i, len(want.result))
+			}
+			got := L.ToString(-1)
+			if got != want.result[i-1] {
+				t.Errorf("Got %v, want %v", got, want.result[i-1])
+			}
+			L.Pop(1)
+			count++
+		}
+		if count < len(want.result) {
+			t.Errorf("Got %v results, want %v", count, len(want.result))
+		}
+	}
 }
 
 func TestGsub(t *testing.T) {
