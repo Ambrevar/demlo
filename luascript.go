@@ -12,7 +12,7 @@ import (
 	"log"
 	"reflect"
 
-	"bitbucket.org/ambrevar/demlo/golua/unicode"
+	"bitbucket.org/ambrevar/golua/unicode"
 	"github.com/aarzilli/golua/lua"
 	"github.com/stevedonovan/luar"
 )
