@@ -143,7 +143,10 @@ type scriptAddFlag struct {
 }
 
 func (s *scriptAddFlag) String() string {
-	return fmt.Sprintf("%q", *s.names)
+	if s.names != nil {
+		return fmt.Sprintf("%q", *s.names)
+	}
+	return ""
 }
 
 func (s *scriptAddFlag) Set(arg string) error {
