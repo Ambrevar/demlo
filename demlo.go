@@ -98,19 +98,18 @@ var (
 	// Precedence: flags > config > defaults.
 	// Exception: extensions specified in flags are merged with config extensions.
 	options = struct {
-		Color        bool
-		Cores        int
-		Debug        bool
-		Exist        string
-		Extensions   stringSetFlag
-		Getcover     bool
-		Gettags      bool
-		Index        string
-		Postscript   string
-		Prescript    string
-		Process      bool
-		Removesource bool
-		Scripts      []string
+		Color      bool
+		Cores      int
+		Debug      bool
+		Exist      string
+		Extensions stringSetFlag
+		Getcover   bool
+		Gettags    bool
+		Index      string
+		Postscript string
+		Prescript  string
+		Process    bool
+		Scripts    []string
 	}{}
 )
 
@@ -266,6 +265,7 @@ type outputInfo struct {
 	ExternalCovers map[string]outputCover `lua:"externalcovers"`
 	OnlineCover    outputCover            `lua:"onlinecover"`
 	Write          string                 `lua:"write"`
+	Rmsrc          bool                   `lua:"rmsrc"`
 }
 
 type outputStatus int
@@ -581,7 +581,6 @@ func main() {
 	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua code after the other scripts.")
 	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
-	flag.BoolVar(&options.Removesource, "rmsrc", options.Removesource, "Remove source file after processing. This option is ignored for multi-track files.")
 
 	sFlag := scriptAddFlag{&options.Scripts}
 	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order. This option can be specified several times.`)

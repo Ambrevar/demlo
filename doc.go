@@ -207,6 +207,7 @@ The 'output' table describes the transformation to apply to the file:
 	   externalcovers = {},
 	   onlinecover = {},
 	   write = '',
+	   rmsrc = false,
 	}
 
 The 'parameters' array holds the CLI parameters passed to FFmpeg. It can be
@@ -217,6 +218,10 @@ The 'embeddedcovers', 'externalcovers' and 'onlinecover' variables are detailed
 in the 'Covers' section.
 
 The 'write' variable is covered in the 'Existing destination' section.
+
+The 'rmsrc' variable is a boolean: when true, Demlo removes the source file
+after processing. This can speed up the process when not re-encoding. This
+option is ignored for multi-track files.
 
 For convenience, the following shortcuts are provided:
 	i = input.tags
@@ -434,7 +439,7 @@ Do not use any script but '60-path'. The file content is unchanged and the file
 is renamed to a dynamically computed destination. Demlo performs an instant
 rename if destination is on the same device. Otherwise it copies the file and
 removes the source.
-	demlo -rmsrc -r '' -s 60-path audio.file
+	demlo -r '' -s 60-path -s 90-rmsrc audio.file
 
 Use the default scripts (if set in configuration file), but do not re-encode:
 	demlo -post 'output.format=input.format; output.parameters={"-c:a","copy"}' audio.file
@@ -472,9 +477,9 @@ Retrieve tags from Internet:
 Same as above but for a whole album, and saving the result to an index:
 	demlo -t album/*.ogg > album-index.json
 
-Download cover for the album corresponding to the track. Use -rmsrc to avoid
+Download cover for the album corresponding to the track. Use 'rmsrc' to avoid
 duplicating the audio file.
-	demlo -rmsrc -c -s 70-cover album/track
+	demlo -c -s 70-cover 90-rmsrc album/track
 
 Change tags inplace with entries from MusicBrainz:
 	demlo -t -r '' album/*

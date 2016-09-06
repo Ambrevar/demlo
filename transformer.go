@@ -47,10 +47,10 @@ func (t *transformer) Run(fr *FileRecord) error {
 
 		// Create file if necessary.
 		if fr.status[track] == statusExist {
-			// If output.Path == input.path && options.Removesource, we process
+			// If output.Path == input.path && output.Rmsrc, we process
 			// in-place.
-			if output.Write == existWriteSkip && (output.Path != input.path || (!options.Removesource || input.trackCount != 1)) {
-				if options.Removesource && input.trackCount == 1 {
+			if output.Write == existWriteSkip && (output.Path != input.path || !output.Rmsrc) {
+				if output.Rmsrc {
 					fr.debug.Printf("Remove source %q", input.path)
 					err := os.Remove(input.path)
 					if err != nil {
@@ -59,13 +59,13 @@ func (t *transformer) Run(fr *FileRecord) error {
 					}
 				}
 				continue
-			} else if output.Write == existWriteSuffix && (!options.Removesource || output.Path != input.path) {
+			} else if output.Write == existWriteSuffix && (!output.Rmsrc || output.Path != input.path) {
 				output.Path, err = mkTemp(output.Path)
 				if err != nil {
 					fr.error.Print(err)
 					continue
 				}
-			} else if output.Write == existWriteOver && !options.Removesource && output.Path == input.path {
+			} else if output.Write == existWriteOver && !output.Rmsrc && output.Path == input.path {
 				continue
 			}
 
@@ -271,7 +271,7 @@ func transformStream(fr *FileRecord, track int) error {
 			fr.error.Print(err)
 			return err
 		}
-	} else if options.Removesource && input.trackCount == 1 {
+	} else if output.Rmsrc {
 		fr.debug.Printf("Remove source %q", input.path)
 		err := os.Remove(input.path)
 		if err != nil {
@@ -291,11 +291,11 @@ func transformMetadata(fr *FileRecord, track int) error {
 
 	if input.path != output.Path {
 		// Rename or copy file.
-		if options.Removesource && input.trackCount == 1 {
+		if output.Rmsrc {
 			fr.debug.Printf("Rename %q to %q", input.path, output.Path)
 			err = os.Rename(input.path, output.Path)
 		}
-		if err != nil || !options.Removesource {
+		if err != nil || !output.Rmsrc {
 			// If renaming failed, it might be because of a cross-device
 			// destination. We try to copy instead.
 			fr.debug.Printf("Copy %q to %q", input.path, output.Path)
@@ -304,7 +304,7 @@ func transformMetadata(fr *FileRecord, track int) error {
 				fr.error.Println(err)
 				return err
 			}
-			if options.Removesource && input.trackCount == 1 {
+			if output.Rmsrc {
 				fr.debug.Printf("Remove source %q", input.path)
 				err = os.Remove(input.path)
 				if err != nil {

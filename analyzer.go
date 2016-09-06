@@ -183,33 +183,44 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	// -No parameters: use "-c:a copy".
 	// -Empty output basename: use input path.
 	// -Remove empty tags to avoid storing empty strings in FFmpeg.
+	// -Do not remove source when file has multiple tracks.
 
-	if output.Format == "" {
-		output.Format = fr.Format.FormatName
-	}
+	foolproof := func() {
+		if output.Format == "" {
+			output.Format = fr.Format.FormatName
+		}
 
-	if len(output.Parameters) == 0 {
-		output.Parameters = []string{"-c:a", "copy"}
-	}
+		if len(output.Parameters) == 0 {
+			output.Parameters = []string{"-c:a", "copy"}
+		}
 
-	if Basename(output.Path) == "" {
-		output.Path = input.path
-	}
+		if Basename(output.Path) == "" {
+			output.Path = input.path
+		}
 
-	var err error
-	output.Path, err = filepath.Abs(output.Path)
-	if err != nil {
-		fr.warning.Print("Cannot get absolute path:", err)
-	}
+		var err error
+		output.Path, err = filepath.Abs(output.Path)
+		if err != nil {
+			fr.warning.Print("Cannot get absolute path:", err)
+		}
 
-	for tag, value := range output.Tags {
-		if value == "" {
-			delete(output.Tags, tag)
+		for tag, value := range output.Tags {
+			if value == "" {
+				delete(output.Tags, tag)
+			}
+		}
+
+		if input.trackCount > 1 {
+			output.Rmsrc = false
 		}
 	}
 
+	foolproof()
+	// 'output.Write' should not be set from scripts.
+	output.Write = existWriteSuffix
+
 	// Check for existence.
-	_, err = os.Stat(output.Path)
+	_, err := os.Stat(output.Path)
 	if err == nil || !os.IsNotExist(err) {
 		fr.status[track] = statusExist
 		if cache.actions[actionExist] != "" {
@@ -237,6 +248,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 				return err
 			}
 			output.Path = savedPath
+			foolproof()
 		} else {
 			// If no exist action is run, append a suffix.
 			output.Write = existWriteSuffix
@@ -245,42 +257,41 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		switch output.Write {
 		case existWriteOver:
 			if output.Path == input.path {
-				if options.Removesource {
+				if output.Rmsrc {
 					fr.warning.Println("write file in-place:", output.Path)
 				} else {
 					fr.error.Print("cannot overwrite and keep source file at the same time:", input.path)
 				}
 			} else {
 				fr.warning.Println("overwrite existing destination:", output.Path)
-				if options.Removesource {
+				if output.Rmsrc {
 					fr.warning.Println("remove source:", input.path)
 				}
 			}
 		case existWriteSkip:
-			if output.Path == input.path && options.Removesource {
+			if output.Path == input.path && output.Rmsrc {
 				fr.warning.Println("write file in-place:", output.Path)
 			} else {
-				fr.warning.Println("skip existing destination:", fr.output[track].Path)
-				if options.Removesource {
+				fr.warning.Println("skip existing destination:", output.Path)
+				if output.Rmsrc {
 					fr.warning.Println("remove source:", input.path)
 				}
 			}
 
 		default:
-			fr.output[track].Write = existWriteSuffix
-			if output.Path == input.path && options.Removesource {
+			output.Write = existWriteSuffix
+			if output.Path == input.path && output.Rmsrc {
 				fr.warning.Println("write file in-place:", output.Path)
 			} else {
-				fr.warning.Println("append suffix to existing destination:", fr.output[track].Path)
-				if options.Removesource {
+				fr.warning.Println("append suffix to existing destination:", output.Path)
+				if output.Rmsrc {
 					fr.warning.Println("remove source:", input.path)
 				}
 			}
 		}
 	} else {
-		// Destination does not exist, value of 'Write' is not used.
-		fr.output[track].Write = existWriteSuffix
-		if options.Removesource {
+		// Destination does not exist.
+		if output.Rmsrc {
 			fr.warning.Println("remove source:", input.path)
 		}
 	}

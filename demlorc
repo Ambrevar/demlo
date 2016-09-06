@@ -31,10 +31,6 @@ Postscript = ''
 -- If false, show preview and exit before processing.
 Process = false
 
--- Remove source after processing. This can speed up the process when not
--- re-encoding.
-Removesource = false
-
 -- Scripts to run by default.
 -- Demlo will run them in lexicographic order.
 -- Order matters, e.g. 'path' can be influenced by the modifications made by 'tag'.
