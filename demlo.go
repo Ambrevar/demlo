@@ -66,8 +66,9 @@ const (
 	indexMaxsize    = 10 * 1024 * 1024
 	codeMaxsize     = 10 * 1024 * 1024
 
-	existWriteOver = "over"
-	existWriteSkip = "skip"
+	existWriteOver   = "over"
+	existWriteSkip   = "skip"
+	existWriteSuffix = "suffix"
 
 	actionExist = "exist"
 )
@@ -267,6 +268,14 @@ type outputInfo struct {
 	Write          string                 `lua:"write"`
 }
 
+type outputStatus int
+
+const (
+	statusOK    outputStatus = iota // All clear.
+	statusFail                      // Scripts failed.
+	statusExist                     // Scripts passed but destination exists.
+)
+
 // FileRecord holds the data passed through the pipeline.
 // It contains, for one file, the input metadata and the output changes from the
 // scripts. FFprobe's Format and Streams are fully stored in 'input' as
@@ -280,6 +289,7 @@ type FileRecord struct {
 	input  inputInfo
 	exist  inputInfo
 	output []outputInfo
+	status []outputStatus
 
 	Format struct {
 		Bitrate    string `json:"bit_rate"`
@@ -571,7 +581,7 @@ func main() {
 	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua code after the other scripts.")
 	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
-	flag.BoolVar(&options.Removesource, "rmsrc", options.Removesource, "Remove source file after processing.")
+	flag.BoolVar(&options.Removesource, "rmsrc", options.Removesource, "Remove source file after processing. This option is ignored for multi-track files.")
 
 	sFlag := scriptAddFlag{&options.Scripts}
 	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order. This option can be specified several times.`)

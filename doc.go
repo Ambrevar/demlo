@@ -115,7 +115,9 @@ By default, when the destination exists, Demlo will append a suffix to the
 output destination. This behaviour can be changed from the 'exist' action
 specified by the user. Demlo comes with a few default actions.
 
-An additional variable is accessible from the action: 'existinfo' holds the file
+The 'exist' action works just like scripts with the following differences:
+- Any change to 'output.path' will be skipped.
+- An additional variable is accessible from the action: 'existinfo' holds the file
 details of the existing files in the same fashion as 'input'. This allows for
 comparing the input file and the existing destination.
 

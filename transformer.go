@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/md5"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,8 +20,6 @@ var visitedDstCovers = struct {
 	sync.RWMutex
 }{v: map[dstCoverKey]bool{}}
 
-var errSkipExisting = errors.New("skip existing file")
-
 // transformer applies the changes resulting from the script run.
 // If the audio stream needs to be transcoded, it calls FFmpeg to apply all the changes.
 // Otherwise, it copies / renames the file and changes metadata with TagLib if necessary.
@@ -35,33 +32,62 @@ func (t *transformer) Close() {}
 func (t *transformer) Run(fr *FileRecord) error {
 	input := &fr.input
 
-	// Re-encode / copy / rename.
 	for track := 0; track < input.trackCount; track++ {
 		output := &fr.output[track]
+
+		if fr.status[track] == statusFail {
+			continue
+		}
 
 		err := os.MkdirAll(filepath.Dir(output.Path), 0777)
 		if err != nil {
 			fr.error.Print(err)
-			return err
+			continue
 		}
 
-		// Copy embeddedCovers, externalCovers and onlineCover.
-		for stream, cover := range output.EmbeddedCovers {
-			inputSource := bytes.NewBuffer(fr.embeddedCoverCache[stream])
-			transferCovers(fr, cover, "embedded "+strconv.Itoa(stream), inputSource, input.embeddedCovers[stream].checksum)
-		}
-		for file, cover := range output.ExternalCovers {
-			inputPath := filepath.Join(filepath.Dir(input.path), file)
-			inputSource, err := os.Open(inputPath)
+		// Create file if necessary.
+		if fr.status[track] == statusExist {
+			// If output.Path == input.path && options.Removesource, we process
+			// in-place.
+			if output.Write == existWriteSkip && (output.Path != input.path || (!options.Removesource || input.trackCount != 1)) {
+				if options.Removesource && input.trackCount == 1 {
+					fr.debug.Printf("Remove source %q", input.path)
+					err := os.Remove(input.path)
+					if err != nil {
+						fr.error.Println(err)
+						return err
+					}
+				}
+				continue
+			} else if output.Write == existWriteSuffix && (!options.Removesource || output.Path != input.path) {
+				output.Path, err = mkTemp(output.Path)
+				if err != nil {
+					fr.error.Print(err)
+					continue
+				}
+			} else if output.Write == existWriteOver && !options.Removesource && output.Path == input.path {
+				continue
+			}
+
+		} else {
+			// 'output.Path' does not exist.
+			st, err := os.Stat(input.path)
 			if err != nil {
+				fr.error.Print(err)
+				// This error will probably happen for the remaining files of the loop.
+				// Let's return now.
 				return err
 			}
-			transferCovers(fr, cover, "external '"+file+"'", inputSource, input.externalCovers[file].checksum)
-			inputSource.Close()
-		}
-		{
-			inputSource := bytes.NewBuffer(fr.onlineCoverCache)
-			transferCovers(fr, output.OnlineCover, "online", inputSource, input.onlineCover.checksum)
+
+			f, err := os.OpenFile(output.Path, os.O_CREATE|os.O_EXCL, st.Mode())
+			if err != nil {
+				// Either the parent folder is not writable, or a race condition happened:
+				// another file with the same path was created between existence check and
+				// creation.
+				fr.error.Print(err)
+				continue
+			}
+			f.Close()
 		}
 
 		// If encoding changed, use FFmpeg. Otherwise, copy/rename the file to
@@ -116,9 +142,33 @@ func (t *transformer) Run(fr *FileRecord) error {
 
 		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
 		if encodingChanged || !taglibSupported {
-			return transformStream(fr, track)
+			err = transformStream(fr, track)
+		} else {
+			err = transformMetadata(fr, track)
 		}
-		return transformMetadata(fr, track)
+		if err != nil {
+			fr.error.Print(err)
+			continue
+		}
+
+		// Copy embeddedCovers, externalCovers and onlineCover.
+		for stream, cover := range output.EmbeddedCovers {
+			inputSource := bytes.NewBuffer(fr.embeddedCoverCache[stream])
+			transferCovers(fr, cover, "embedded "+strconv.Itoa(stream), inputSource, input.embeddedCovers[stream].checksum)
+		}
+		for file, cover := range output.ExternalCovers {
+			inputPath := filepath.Join(filepath.Dir(input.path), file)
+			inputSource, err := os.Open(inputPath)
+			if err != nil {
+				return err
+			}
+			transferCovers(fr, cover, "external '"+file+"'", inputSource, input.externalCovers[file].checksum)
+			inputSource.Close()
+		}
+		{
+			inputSource := bytes.NewBuffer(fr.onlineCoverCache)
+			transferCovers(fr, output.OnlineCover, "online", inputSource, input.onlineCover.checksum)
+		}
 	}
 
 	return nil
@@ -191,10 +241,14 @@ func transformStream(fr *FileRecord, track int) error {
 	// Output file.
 	// FFmpeg cannot transcode inplace, so we force creating a temp file if
 	// necessary.
-	dst, isInplace, err := makeTrackDst(output.Path, input.path, output.Write, false)
-	if err != nil {
-		fr.error.Print(err)
-		return err
+	dst := output.Path
+	if input.path == output.Path {
+		var err error
+		dst, err = mkTemp(output.Path)
+		if err != nil {
+			fr.error.Print(err)
+			return err
+		}
 	}
 	ffmpegParameters = append(ffmpegParameters, dst)
 
@@ -204,29 +258,25 @@ func transformStream(fr *FileRecord, track int) error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		fr.error.Printf(stderr.String())
 		return err
 	}
 
-	if options.Removesource {
+	if input.path == output.Path {
+		fr.debug.Printf("Rename %q to %q to transform inplace", dst, input.path)
+		err = os.Rename(dst, input.path)
 		if err != nil {
 			fr.error.Print(err)
 			return err
 		}
-		if isInplace {
-			fr.debug.Printf("Rename %q to %q to transform inplace", dst, input.path)
-			err = os.Rename(dst, input.path)
-			if err != nil {
-				fr.error.Print(err)
-			}
-		} else {
-			fr.debug.Printf("Remove source %q", input.path)
-			err = os.Remove(input.path)
-			if err != nil {
-				fr.error.Print(err)
-			}
+	} else if options.Removesource && input.trackCount == 1 {
+		fr.debug.Printf("Remove source %q", input.path)
+		err := os.Remove(input.path)
+		if err != nil {
+			fr.error.Println(err)
+			return err
 		}
 	}
 
@@ -237,31 +287,24 @@ func transformMetadata(fr *FileRecord, track int) error {
 	input := &fr.input
 	output := &fr.output[track]
 
-	dst, isInplace, err := makeTrackDst(output.Path, input.path, output.Write, options.Removesource)
-	if err == errSkipExisting {
-		fr.debug.Print(err)
-		return err
-	} else if err != nil {
-		fr.error.Print(err)
-		return err
-	}
+	var err error
 
-	if !isInplace {
-		err = nil
-		if options.Removesource {
-			fr.debug.Printf("Rename %q to %q", input.path, dst)
-			err = os.Rename(input.path, dst)
+	if input.path != output.Path {
+		// Rename or copy file.
+		if options.Removesource && input.trackCount == 1 {
+			fr.debug.Printf("Rename %q to %q", input.path, output.Path)
+			err = os.Rename(input.path, output.Path)
 		}
 		if err != nil || !options.Removesource {
 			// If renaming failed, it might be because of a cross-device
 			// destination. We try to copy instead.
-			fr.debug.Printf("Copy %q to %q", input.path, dst)
-			err := CopyFile(dst, input.path)
+			fr.debug.Printf("Copy %q to %q", input.path, output.Path)
+			err := CopyFile(output.Path, input.path)
 			if err != nil {
 				fr.error.Println(err)
 				return err
 			}
-			if options.Removesource {
+			if options.Removesource && input.trackCount == 1 {
 				fr.debug.Printf("Remove source %q", input.path)
 				err = os.Remove(input.path)
 				if err != nil {
@@ -289,9 +332,9 @@ func transformMetadata(fr *FileRecord, track int) error {
 	}
 
 	if tagsChanged {
-		fr.debug.Print("Set tags inplace with TagLib")
+		fr.debug.Print("Set tags with TagLib")
 
-		f, err := taglib.Read(dst)
+		f, err := taglib.Read(output.Path)
 		if err != nil {
 			fr.error.Print(err)
 			return err
@@ -334,67 +377,16 @@ func transformMetadata(fr *FileRecord, track int) error {
 	return nil
 }
 
-// Create a new destination file 'dst'.
-//
-// As an additional informational value, it says if the real paths of outputPath
-// and inputPath are the same. It saves the need for recomputing that value
-// later on.
-//
-// As a special case, if 'inputPath == dst' and 'removesource == true',
-// then modify the file inplace.
-// If no third-party program overwrites existing files, this approach cannot
-// clobber existing files.
-func makeTrackDst(outputPath string, inputPath string, write string, removeSource bool) (dst string, isInplace bool, err error) {
-	if _, err := os.Stat(outputPath); err == nil || !os.IsNotExist(err) {
-		// 'outputPath' exists.
-		// The realpath is required to see if transformation is inplace.
-		// The realpath can only be expanded when the parent folder exists.
-		dst, err = realpath.Realpath(outputPath)
-		if err != nil {
-			return "", false, err
-		}
-
-		if inputPath == dst {
-			isInplace = true
-		} else {
-			if !removeSource {
-				// If not inplace, do whatever 'write' says.
-				switch write {
-				case existWriteOver:
-					return dst, false, nil
-				case existWriteSkip:
-					return "", false, errSkipExisting
-				default:
-					// Create a tempfile with a suffix appended.
-					f, err := TempFile(filepath.Dir(dst), StripExt(filepath.Base(dst))+"_", "."+Ext(dst))
-					if err != nil {
-						return "", false, err
-					}
-					dst = f.Name()
-					f.Close()
-				}
-			}
-		}
-
-	} else {
-		// 'outputPath' does not exist.
-		st, err := os.Stat(inputPath)
-		if err != nil {
-			return "", false, err
-		}
-
-		f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_EXCL, st.Mode())
-		if err != nil {
-			// Either the parent folder is not writable, or a race condition happened:
-			// another file with the same path was created between existence check and
-			// creation.
-			return "", false, err
-		}
-		f.Close()
-		dst = outputPath
+// mkTemp creates a temp file by appending a random suffix to 'dst' while
+// preserving its extension. Return the name of the temp file.
+func mkTemp(dst string) (temp string, err error) {
+	f, err := TempFile(filepath.Dir(dst), StripExt(filepath.Base(dst))+"_", "."+Ext(dst))
+	if err != nil {
+		return "", err
 	}
-
-	return dst, false, nil
+	temp = f.Name()
+	f.Close()
+	return temp, nil
 }
 
 // Create a new destination file 'dst'. See makeTrackDst.

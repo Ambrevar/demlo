@@ -173,11 +173,11 @@ func RunAction(L *lua.State, action string, input *inputInfo, output *outputInfo
 // Any change made to 'input' is discarded. Change to 'output' are transfered
 // back to Go on every script call to guarantee type consistency across script
 // calls (Lua is dynamically typed).
-// 'exist' is optional.
 func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo) error {
 	return run(L, registryScripts, script, input, output, nil)
 }
 
+// 'exist' is optional.
 func run(L *lua.State, registryIndex string, code string, input *inputInfo, output *outputInfo, exist *inputInfo) error {
 	// Restore the sandbox.
 	err := L.DoString(luaRestoreSandbox)

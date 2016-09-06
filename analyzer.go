@@ -25,6 +25,7 @@ import (
 	"bitbucket.org/ambrevar/demlo/cuesheet"
 	"github.com/aarzilli/golua/lua"
 	"github.com/mgutz/ansi"
+	"github.com/yookoala/realpath"
 )
 
 var (
@@ -115,10 +116,12 @@ func (a *analyzer) Run(fr *FileRecord) error {
 	}
 
 	fr.output = make([]outputInfo, input.trackCount)
+	fr.status = make([]outputStatus, input.trackCount)
 	for track := 0; track < input.trackCount; track++ {
 		err := a.RunAllScripts(fr, track, defaultTags)
 		if err != nil {
-			return err
+			fr.status[track] = statusFail
+			continue
 		}
 	}
 
@@ -206,37 +209,80 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 	}
 
 	// Check for existence.
-	_, err = os.Stat(fr.output[track].Path)
+	_, err = os.Stat(output.Path)
 	if err == nil || !os.IsNotExist(err) {
+		fr.status[track] = statusExist
 		if cache.actions[actionExist] != "" {
-			fr.exist.path = fr.output[track].Path
-			err := prepareInput(fr, &fr.exist)
+			// 'output.Path' exists.
+			// The realpath is required to see if transformation is inplace.
+			output.Path, err = realpath.Realpath(output.Path)
 			if err != nil {
+				// The realpath can only be expanded when the parent folder exists.
+				fr.error.Print(err)
 				return err
 			}
+			fr.exist.path = output.Path
+
+			err := prepareInput(fr, &fr.exist)
+			if err != nil {
+				fr.error.Print(err)
+				return err
+			}
+			// Save output.Path to guarantee no action will change it.
+			savedPath := output.Path
 			prepareTrackTags(&fr.exist, track)
 			err = RunAction(a.L, actionExist, input, output, &fr.exist)
 			if err != nil {
 				fr.error.Printf("Exist action: %s", err)
 				return err
 			}
+			output.Path = savedPath
 		} else {
-			// Don't always call above functions to save the analysis of existing
-			// destination.
-			fr.output[track].Write = "suffix"
+			// If no exist action is run, append a suffix.
+			output.Write = existWriteSuffix
 		}
 
-		switch fr.output[track].Write {
+		switch output.Write {
 		case existWriteOver:
-			fr.warning.Println("Overwrite existing destination:", fr.output[track].Path)
+			if output.Path == input.path {
+				if options.Removesource {
+					fr.warning.Println("write file in-place:", output.Path)
+				} else {
+					fr.error.Print("cannot overwrite and keep source file at the same time:", input.path)
+				}
+			} else {
+				fr.warning.Println("overwrite existing destination:", output.Path)
+				if options.Removesource {
+					fr.warning.Println("remove source:", input.path)
+				}
+			}
 		case existWriteSkip:
-			fr.warning.Println("Skip existing destination:", fr.output[track].Path)
+			if output.Path == input.path && options.Removesource {
+				fr.warning.Println("write file in-place:", output.Path)
+			} else {
+				fr.warning.Println("skip existing destination:", fr.output[track].Path)
+				if options.Removesource {
+					fr.warning.Println("remove source:", input.path)
+				}
+			}
+
 		default:
-			fr.output[track].Write = "suffix"
-			fr.warning.Println("Append suffix to existing destination:", fr.output[track].Path)
+			fr.output[track].Write = existWriteSuffix
+			if output.Path == input.path && options.Removesource {
+				fr.warning.Println("write file in-place:", output.Path)
+			} else {
+				fr.warning.Println("append suffix to existing destination:", fr.output[track].Path)
+				if options.Removesource {
+					fr.warning.Println("remove source:", input.path)
+				}
+			}
 		}
 	} else {
-		fr.output[track].Write = "nonexist"
+		// Destination does not exist, value of 'Write' is not used.
+		fr.output[track].Write = existWriteSuffix
+		if options.Removesource {
+			fr.warning.Println("remove source:", input.path)
+		}
 	}
 
 	return nil
