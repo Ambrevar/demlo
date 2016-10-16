@@ -1,7 +1,6 @@
 // Copyright © 2013-2016 Pierre Neidhardt <ambrevar@gmail.com>
 // Use of this file is governed by the license that can be found in LICENSE.
 
-// TODO: Add shell auto-completion file.
 // TODO: Allow for embedding covers. Have a look at:
 // * mp4art (libmp4v2): mp4art --add cover.jpg track.m4a
 // * vorbiscomment (vorbis-tools)
