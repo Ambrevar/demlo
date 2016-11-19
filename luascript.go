@@ -27,11 +27,7 @@ const (
 // Compound types are deep-copied.
 // Functions are automatically converted to 'func (L *lua.State) int'.
 func goToLua(L *lua.State, name string, val interface{}) {
-	if reflect.TypeOf(val).Kind() == reflect.Func {
-		L.PushGoFunction(luar.GoLuaFunc(L, val))
-	} else {
-		luar.GoToLua(L, nil, reflect.ValueOf(val), true)
-	}
+	luar.GoToLua(L, nil, reflect.ValueOf(val), true)
 	L.SetGlobal(name)
 }
 
