@@ -18,6 +18,9 @@ import (
 )
 
 const (
+	// Note: we do not use Lua references (luaL_ref) so that we do not have to
+	// pass them, together with the Lua state, to the calling goroutine to ensure
+	// re-entrency.
 	registryWhitelist = "_whitelist"
 	registryScripts   = "_scripts"
 	registryActions   = "_actions"
