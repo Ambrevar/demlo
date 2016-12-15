@@ -96,21 +96,23 @@ var (
 	// Options used in the config file and/or as CLI flags.
 	// Precedence: flags > config > defaults.
 	// Exception: extensions specified in flags are merged with config extensions.
-	options = struct {
-		Color      bool
-		Cores      int
-		Debug      bool
-		Exist      string
-		Extensions stringSetFlag
-		Getcover   bool
-		Gettags    bool
-		Index      string
-		Postscript string
-		Prescript  string
-		Process    bool
-		Scripts    []string
-	}{}
+	options Options
 )
+
+type Options struct {
+	Color      bool
+	Cores      int
+	Debug      bool
+	Exist      string
+	Extensions stringSetFlag
+	Getcover   bool
+	Gettags    bool
+	Index      string
+	Postscript string
+	Prescript  string
+	Process    bool
+	Scripts    []string
+}
 
 // Identify visited cover files with {path,checksum} as map key.
 type dstCoverKey struct {

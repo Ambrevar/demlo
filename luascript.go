@@ -10,11 +10,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"reflect"
 
 	"bitbucket.org/ambrevar/golua/unicode"
 	"github.com/aarzilli/golua/lua"
-	"github.com/stevedonovan/luar"
+	"gopkg.in/stevedonovan/luar.v2"
 )
 
 const (
@@ -26,11 +25,9 @@ const (
 	registryActions   = "_actions"
 )
 
-// goToLua copies Go values to Lua and sets the result to global 'name'.
-// Compound types are deep-copied.
-// Functions are automatically converted to 'func (L *lua.State) int'.
+// Shorthand.
 func goToLua(L *lua.State, name string, val interface{}) {
-	luar.GoToLua(L, nil, reflect.ValueOf(val), true)
+	luar.GoToLua(L, val)
 	L.SetGlobal(name)
 }
 
@@ -230,28 +227,29 @@ func run(L *lua.State, registryIndex string, code string, input *inputInfo, outp
 	outputNumbersToStrings(L)
 
 	L.GetGlobal("output")
-	r := luar.LuaToGo(L, reflect.TypeOf(*output), -1)
+	err = luar.LuaToGo(L, -1, &output)
 	L.Pop(1)
-
-	*output = r.(outputInfo)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // LoadConfig parses the Lua file pointed by 'config' and stores it to options.
-func LoadConfig(config string, options interface{}) {
+func LoadConfig(config string, options *Options) {
 	L, err := MakeSandbox(log.Println)
 	defer L.Close()
 
 	err = L.DoFile(config)
 	if err != nil {
-		log.Fatalf("Error loading config: %s", err)
+		log.Fatalf("error loading config: %s", err)
 	}
 
 	L.GetGlobal("_G")
-	r := luar.LuaToGo(L, reflect.TypeOf(options), -1)
+	err = luar.LuaToGo(L, -1, options)
 	L.Pop(1)
-
-	v := reflect.ValueOf(options)
-	v.Elem().Set(reflect.ValueOf(r).Elem())
+	if err != nil {
+		log.Fatalf("error passing config to go: %s", err)
+	}
 }
