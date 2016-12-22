@@ -3,7 +3,10 @@
 
 package main
 
-// TODO: Use "github.com/go-fingerprint/fingerprint"? Package seems broken as of 2015.12.01.
+// TODO: Use "github.com/go-fingerprint/fingerprint"?
+// Package seems broken as of 2015.12.01.
+// This would be more resilient to upstream library change, e.g. when
+// chromaprint 1.4 removed the filename from its output.
 
 import (
 	"bytes"
@@ -27,42 +30,27 @@ func fingerprint(file string) (fingerprint string, duration int, err error) {
 		return "", 0, fmt.Errorf("fingerprint: %s", stderr.String())
 	}
 
-	var durationSlice []byte
+	// 'out' must of the form:
+	// ...
+	// DURATION=
+	// FINGERPRINT=
+	// ...
 
-	// Skip file line.
-	for i, c := range out {
-		if c == '\n' {
-			out = out[i+1:]
-			break
-		}
-	}
-	// Skip "DURATION=".
-	for i, c := range out {
-		if c == '=' {
-			out = out[i+1:]
-			break
-		}
-	}
-	for i, c := range out {
-		if c == '\n' {
-			durationSlice = out[:i]
-			out = out[i+1:]
-			break
-		}
-	}
-	// Skip "FINGERPRINT=".
-	for i, c := range out {
-		if c == '=' {
-			out = out[i+1:]
-			break
-		}
-	}
-	// Strip trailing newline.
-	if out[len(out)-1] == '\n' {
-		out = out[:len(out)-1]
+	for !bytes.HasPrefix(out, []byte("DURATION")) {
+		out = out[bytes.IndexByte(out, '\n')+1:]
 	}
 
-	duration, err = strconv.Atoi(string(durationSlice))
+	var durationOutput []byte = out[bytes.IndexByte(out, '=')+1:]
+	durationOutput = durationOutput[:bytes.IndexByte(durationOutput, '\n')]
+
+	for !bytes.HasPrefix(out, []byte("FINGERPRINT")) {
+		out = out[bytes.IndexByte(out, '\n')+1:]
+	}
+
+	out = out[bytes.IndexByte(out, '=')+1:]
+	out = out[:bytes.IndexByte(out, '\n')]
+
+	duration, err = strconv.Atoi(string(durationOutput))
 	if err != nil {
 		return "", 0, err
 	}
