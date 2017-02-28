@@ -13,7 +13,7 @@ import (
 
 	"bitbucket.org/ambrevar/golua/unicode"
 	"github.com/aarzilli/golua/lua"
-	"gopkg.in/stevedonovan/luar.v2"
+	"github.com/stevedonovan/luar"
 )
 
 const (
