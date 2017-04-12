@@ -250,7 +250,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 			output.Path = savedPath
 			foolproof()
 		} else {
-			// If no exist action is run, append a suffix.
+			// If no 'exist' action is run, append a suffix.
 			output.Write = existWriteSuffix
 		}
 
@@ -593,6 +593,10 @@ func prettyPrint(fr *FileRecord, attr, input, output string, attrMaxlen, valueMa
 		return b
 	}
 
+	if valueMaxlen < 1 {
+		valueMaxlen = 1
+	}
+
 	// Print first line with title.
 	fr.plain.Printf(
 		"%*v["+ansi.Color("%.*s", colorIn)+"] | %-*v | ["+ansi.Color("%.*s", colorOut)+"]\n",
@@ -639,6 +643,10 @@ func preview(fr *FileRecord, track int) {
 		// Can this happen? It would mean that os.Stderr has changed during
 		// execution since we did the TerminalSize() check in main().
 		return
+	}
+	if maxCols <= 0 {
+		// Not a terminal. Try anyways.
+		maxCols = 70
 	}
 
 	prepareTrackTags(input, track)
