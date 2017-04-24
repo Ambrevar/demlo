@@ -36,7 +36,7 @@ import (
 const (
 	application = "demlo"
 	copyright   = "Copyright (C) 2013-2016 Pierre Neidhardt"
-	URL         = "http://ambrevar.bitbucket.org/demlo"
+	URL         = "http://ambrevar.bitbucket.io/demlo"
 )
 
 var version = "<tip>"

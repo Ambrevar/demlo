@@ -51,7 +51,7 @@ Install the files as follows:
 
 ## Usage
 
-See `demlo -h` and the [home page](http://ambrevar.bitbucket.org/demlo/).
+See `demlo -h` and the [home page](http://ambrevar.bitbucket.io/demlo/).
 
 ## License
 
