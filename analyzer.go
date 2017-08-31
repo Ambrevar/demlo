@@ -646,7 +646,14 @@ func preview(fr *FileRecord, track int) {
 	}
 	if maxCols <= 0 {
 		// Not a terminal. Try anyways.
-		maxCols = 70
+		cols := os.Getenv("COLUMNS")
+		if cols == "" {
+			cols = os.Getenv("COLS")
+		}
+		maxCols, err = strconv.Atoi(cols)
+		if err != nil {
+			maxCols = 70
+		}
 	}
 
 	prepareTrackTags(input, track)
