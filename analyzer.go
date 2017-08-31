@@ -232,8 +232,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 
 			err := prepareInput(fr, &fr.exist)
 			if err != nil {
-				fr.error.Print(err)
-				return err
+				fr.warning.Print(err)
 			}
 			// Save output.Path to guarantee no action will change it.
 			savedPath := output.Path
