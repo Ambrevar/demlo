@@ -259,7 +259,7 @@ type TagsCache struct {
 // error, leaving the 'tags' structure empty (zero value). It allows for
 // spotting dummy entries during future queries and avoid running into errors
 // again.
-func (c *TagsCache) get(releaseID ReleaseID, albumKey AlbumKey, fr *FileRecord, recordingID *RecordingID) (*Tags, error) {
+func (c *TagsCache) get(releaseID ReleaseID, albumKey AlbumKey, fr *FileRecord) (*Tags, error) {
 	var err error
 
 	c.Lock()
@@ -621,7 +621,7 @@ func GetOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 	}
 	fr.debug.Printf("albumKey = %q", albumKey)
 
-	tags, err := tagsCache.get(releaseID, albumKey, fr, &recordingID)
+	tags, err := tagsCache.get(releaseID, albumKey, fr)
 	if err != nil {
 		return releaseID, nil, err
 	}
