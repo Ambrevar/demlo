@@ -53,15 +53,11 @@ func (a *analyzer) Init() {
 	}
 
 	// Compile scripts.
-	var err error
 	luaDebug := a.scriptLog.Println
 	if !options.Debug {
 		luaDebug = nil
 	}
-	a.L, err = MakeSandbox(luaDebug)
-	if err != nil {
-		log.Fatal(err)
-	}
+	a.L = MakeSandbox(luaDebug)
 
 	for _, script := range cache.scripts {
 		SandboxCompileScript(a.L, script.name, script.buf)

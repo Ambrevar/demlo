@@ -45,8 +45,7 @@ func sandboxRegister(L *lua.State, name string, f interface{}) {
 // whitelist, sets up the debug function if necessary and adds some Go helper
 // functions.
 // The caller is responsible for closing the Lua state.
-// Add a `defer L.Close()` to the calling code if there is no error.
-func MakeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
+func MakeSandbox(logPrint func(v ...interface{})) *lua.State {
 	L := lua.NewState()
 	L.OpenLibs()
 	unicode.GoLuaReplaceFuncs(L)
@@ -103,7 +102,7 @@ func MakeSandbox(logPrint func(v ...interface{})) (*lua.State, error) {
 	L.NewTable()
 	L.SetTable(lua.LUA_REGISTRYINDEX)
 
-	return L, nil
+	return L
 }
 
 // SandboxCompileAction is like SandboxCompileScripts.
@@ -238,10 +237,10 @@ func run(L *lua.State, registryIndex string, code string, input *inputInfo, outp
 
 // LoadConfig parses the Lua file pointed by 'config' and stores it to options.
 func LoadConfig(config string, options *Options) {
-	L, err := MakeSandbox(log.Println)
+	L := MakeSandbox(log.Println)
 	defer L.Close()
 
-	err = L.DoFile(config)
+	err := L.DoFile(config)
 	if err != nil {
 		log.Fatalf("error loading config: %s", err)
 	}
