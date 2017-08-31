@@ -197,7 +197,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		var err error
 		output.Path, err = filepath.Abs(output.Path)
 		if err != nil {
-			fr.warning.Print("Cannot get absolute path:", err)
+			fr.warning.Print("cannot get absolute path:", err)
 		}
 
 		for tag, value := range output.Tags {
@@ -239,7 +239,7 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 			prepareTrackTags(&fr.exist, track)
 			err = RunAction(a.L, actionExist, input, output, &fr.exist)
 			if err != nil {
-				fr.error.Printf("Exist action: %s", err)
+				fr.error.Printf("'exist' action: %s", err)
 				return err
 			}
 			output.Path = savedPath
@@ -346,7 +346,7 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 		}
 	}
 	if info.audioIndex == -1 {
-		fr.warning.Print("Non-audio file:", info.path)
+		fr.warning.Print("non-audio file:", info.path)
 		return errNonAudio
 	}
 
@@ -380,7 +380,7 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 				continue
 			}
 			if st.Size() > cuesheetMaxsize {
-				fr.warning.Printf("Cuesheet size %v > %v bytes, skipping", cs, cuesheetMaxsize)
+				fr.warning.Printf("cuesheet size %v > %v bytes, skipping", cs, cuesheetMaxsize)
 				continue
 			}
 			buf, err := ioutil.ReadFile(cs)
@@ -440,7 +440,7 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 	if err != nil {
 		info.bitrate, err = strconv.Atoi(probed.Format.Bitrate)
 		if err != nil {
-			fr.warning.Print("Cannot get bitrate from", info.path)
+			fr.warning.Print("cannot get bitrate from ", info.path)
 			return err
 		}
 	}

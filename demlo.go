@@ -445,12 +445,12 @@ func cacheAction(name, path string) {
 		return
 	}
 	if sz := st.Size(); sz > codeMaxsize {
-		warning.Printf("Code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
+		warning.Printf("code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
 		return
 	}
 	buf, err := ioutil.ReadFile(path)
 	if err != nil {
-		warning.Print("Code is not readable: ", err)
+		warning.Print("code is not readable: ", err)
 		return
 	}
 	cache.actions[name] = string(buf)
@@ -470,12 +470,12 @@ func cacheScripts() {
 		}
 		visited[path] = true
 		if sz := st.Size(); sz > codeMaxsize {
-			warning.Printf("Code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
+			warning.Printf("code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
 			continue
 		}
 		buf, err := ioutil.ReadFile(path)
 		if err != nil {
-			warning.Print("Code is not readable: ", err)
+			warning.Print("code is not readable: ", err)
 			continue
 		}
 		cache.scripts = append(cache.scripts, scriptBuffer{name: StripExt(filepath.Base(path)), path: path, buf: string(buf)})
@@ -499,18 +499,18 @@ func cacheIndex() {
 	if options.Index != "" {
 		st, err := os.Stat(options.Index)
 		if err != nil {
-			warning.Printf("Index not found: [%v]", options.Index)
+			warning.Printf("index not found: [%v]", options.Index)
 		} else if st.Size() > indexMaxsize {
-			warning.Printf("Index size > %v bytes, skipping: %v", indexMaxsize, options.Index)
+			warning.Printf("index size > %v bytes, skipping: %v", indexMaxsize, options.Index)
 		} else if buf, err := ioutil.ReadFile(options.Index); err != nil {
-			warning.Print("Index is not readable:", err)
+			warning.Print("index is not readable:", err)
 		} else {
 			// Enclose JSON list in a valid structure: index ends with a
 			// comma, hence the required dummy entry.
 			buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
 			err = json.Unmarshal(buf, &cache.index)
 			if err != nil {
-				warning.Printf("Invalid index %v: %v", options.Index, err)
+				warning.Printf("invalid index %v: %v", options.Index, err)
 			}
 		}
 	}
