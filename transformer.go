@@ -118,24 +118,37 @@ func (t *transformer) Run(fr *FileRecord) error {
 			"album":   true,
 			"artist":  true,
 			"comment": true,
-			"date":    true,
 			"genre":   true,
 			"title":   true,
 			"track":   true,
 		}
 		var taglibSupported = true
 		for k, v := range input.tags {
-			if k != "encoder" && output.Tags[k] != v && !taglibFormats[k] {
-				taglibSupported = false
-				break
+			if k != "encoder" && output.Tags[k] != v {
+				if k == "date" {
+					if _, err := strconv.Atoi(v); err != nil {
+						taglibSupported = false
+						break
+					}
+				} else if !taglibFormats[k] {
+					taglibSupported = false
+					break
+				}
 			}
 		}
 
 		if taglibSupported {
 			for k, v := range output.Tags {
-				if k != "encoder" && input.tags[k] != v && !taglibFormats[k] {
-					taglibSupported = false
-					break
+				if k != "encoder" && input.tags[k] != v {
+					if k == "date" {
+						if _, err := strconv.Atoi(v); err != nil {
+							taglibSupported = false
+							break
+						}
+					} else if !taglibFormats[k] {
+						taglibSupported = false
+						break
+					}
 				}
 			}
 		}
@@ -363,10 +376,9 @@ func transformMetadata(fr *FileRecord, track int) error {
 			}
 		}
 		if output.Tags["date"] != "" {
-			t, err := strconv.Atoi(output.Tags["date"])
-			if err == nil {
-				f.SetYear(t)
-			}
+			t, _ := strconv.Atoi(output.Tags["date"])
+			// There is no need to check for errors as the caller has already.
+			f.SetYear(t)
 		}
 
 		err = f.Save()
