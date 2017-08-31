@@ -255,7 +255,7 @@ type TagsCache struct {
 	sync.Mutex
 }
 
-// When adding an entry to tagsCache, the fucntion will end prematurely on
+// When adding an entry to tagsCache, the function will end prematurely on
 // error, leaving the 'tags' structure empty (zero value). It allows for
 // spotting dummy entries during future queries and avoid running into errors
 // again.
@@ -451,8 +451,6 @@ func queryAcoustID(fr *FileRecord, meta acoustid.Meta, duration int) (recordingI
 				}
 
 				switch acoustRelease.Date.Year {
-				case 0:
-					break
 				case year:
 					relYear = 1
 				case year - 1, year + 1:
@@ -540,6 +538,9 @@ Disc %v, Track %v, TrackCount %v: %.4g
 
 func queryCover(releaseID ReleaseID) (Cover, error) {
 	resp, err := http.DefaultClient.Get("http://coverartarchive.org/release/" + string(releaseID) + "/front")
+	if err != nil {
+		return Cover{}, err
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
@@ -688,7 +689,7 @@ func GetOnlineTags(fr *FileRecord) (ReleaseID, map[string]string, error) {
 		}
 	}
 
-	// Loopup the recording over all discs since the disc tag is not reliable.
+	// Lookup the recording over all discs since the disc tag is not reliable.
 	recording, ok := tags.recordings[recordingID]
 	if !ok {
 		return releaseID, nil, errors.New("recording ID absent from cache")

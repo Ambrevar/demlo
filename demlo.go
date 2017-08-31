@@ -619,7 +619,7 @@ func main() {
 	if (st.Mode() & os.ModeCharDevice) == 0 {
 		previewOptions.printIndex = true
 	}
-	// Disable diff preview if stderr is does not have a 'TerminalSize'.
+	// Disable diff preview if stderr does not have a 'TerminalSize'.
 	st, _ = os.Stderr.Stat()
 	if (st.Mode() & os.ModeCharDevice) == 0 {
 		options.Color = false

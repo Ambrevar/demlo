@@ -164,7 +164,7 @@ func RunAction(L *lua.State, action string, input *inputInfo, output *outputInfo
 }
 
 // RunScript executes script named 'script' with 'input' and 'output' set as global variable.
-// Any change made to 'input' is discarded. Change to 'output' are transfered
+// Any change made to 'input' is discarded. Change to 'output' are transferred
 // back to Go on every script call to guarantee type consistency across script
 // calls (Lua is dynamically typed).
 func RunScript(L *lua.State, script string, input *inputInfo, output *outputInfo) error {
@@ -228,11 +228,7 @@ func run(L *lua.State, registryIndex string, code string, input *inputInfo, outp
 	L.GetGlobal("output")
 	err = luar.LuaToGo(L, -1, &output)
 	L.Pop(1)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // LoadConfig parses the Lua file pointed by 'config' and stores it to options.
