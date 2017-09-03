@@ -1,3 +1,6 @@
+// Copyright © 2013-2017 Pierre Neidhardt <ambrevar@gmail.com>
+// Use of this file is governed by the license that can be found in LICENSE.
+
 package main
 
 import (
