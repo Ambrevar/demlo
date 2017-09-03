@@ -22,8 +22,8 @@ import (
 	"strings"
 	"sync"
 
-	"bitbucket.org/ambrevar/demlo/cuesheet"
 	"github.com/aarzilli/golua/lua"
+	"github.com/ambrevar/demlo/cuesheet"
 	"github.com/mgutz/ansi"
 	"github.com/yookoala/realpath"
 )

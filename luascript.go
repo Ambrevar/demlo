@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"log"
 
-	"bitbucket.org/ambrevar/golua/unicode"
 	"github.com/aarzilli/golua/lua"
+	"github.com/ambrevar/golua/unicode"
 	"github.com/stevedonovan/luar"
 )
 

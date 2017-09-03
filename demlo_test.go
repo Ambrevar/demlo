@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"bitbucket.org/ambrevar/demlo/cuesheet"
+	"github.com/ambrevar/demlo/cuesheet"
 )
 
 const (

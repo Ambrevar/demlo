@@ -28,7 +28,7 @@ Optional dependencies:
 
 Set up a Go environment (see <https://golang.org/doc/install>) and run:
 
-	$ go get bitbucket.org/ambrevar/demlo
+	$ go get github.com/ambrevar/demlo
 
 The version number is set at compilation time. To package a specific version,
 checkout the corresponding tag and set `version` from the build command, e.g.:

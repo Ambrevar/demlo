@@ -45,7 +45,7 @@ import (
 	"strconv"
 	"sync"
 
-	"bitbucket.org/ambrevar/demlo/acoustid"
+	"github.com/ambrevar/demlo/acoustid"
 	"github.com/michiwend/gomusicbrainz"
 )
 

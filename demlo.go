@@ -29,7 +29,7 @@ import (
 	"sort"
 	"strings"
 
-	"bitbucket.org/ambrevar/demlo/cuesheet"
+	"github.com/ambrevar/demlo/cuesheet"
 	"github.com/mgutz/ansi"
 )
 
