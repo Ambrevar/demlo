@@ -123,12 +123,13 @@ func (t *transformer) Run(fr *FileRecord) error {
 			"comment": true,
 			"genre":   true,
 			"title":   true,
-			"track":   true,
+			// 'date' and 'track' are handled separately because TagLib only supports
+			// integers for those tags.
 		}
 		var taglibSupported = true
 		for k, v := range input.tags {
 			if k != "encoder" && output.Tags[k] != v {
-				if k == "date" {
+				if k == "date" || k == "track" {
 					if _, err := strconv.Atoi(v); err != nil {
 						taglibSupported = false
 						break
@@ -143,7 +144,7 @@ func (t *transformer) Run(fr *FileRecord) error {
 		if taglibSupported {
 			for k, v := range output.Tags {
 				if k != "encoder" && input.tags[k] != v {
-					if k == "date" {
+					if k == "date" || k == "track" {
 						if _, err := strconv.Atoi(v); err != nil {
 							taglibSupported = false
 							break
@@ -373,10 +374,9 @@ func transformMetadata(fr *FileRecord, track int) error {
 			f.SetTitle(output.Tags["title"])
 		}
 		if output.Tags["track"] != "" {
-			t, err := strconv.Atoi(output.Tags["track"])
-			if err == nil {
-				f.SetTrack(t)
-			}
+			t, _ := strconv.Atoi(output.Tags["track"])
+			// There is no need to check for errors as the caller has already.
+			f.SetTrack(t)
 		}
 		if output.Tags["date"] != "" {
 			t, _ := strconv.Atoi(output.Tags["date"])
