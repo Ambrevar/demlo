@@ -477,9 +477,9 @@ Retrieve tags from Internet:
 Same as above but for a whole album, and saving the result to an index:
 	demlo -t album/*.ogg > album-index.json
 
-Download cover for the album corresponding to the track. Use 'rmsrc' to avoid
-duplicating the audio file.
-	demlo -c -s 70-cover -s 90-rmsrc album/track
+Only download the cover for the album corresponding to the track. Use 'rmsrc' to
+avoid duplicating the audio file.
+	demlo -c -r "" -s 70-cover -s 90-rmsrc album/track
 
 Change tags inplace with entries from MusicBrainz:
 	demlo -t -r '' album/*
