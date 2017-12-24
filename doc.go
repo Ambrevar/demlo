@@ -479,7 +479,7 @@ Same as above but for a whole album, and saving the result to an index:
 
 Download cover for the album corresponding to the track. Use 'rmsrc' to avoid
 duplicating the audio file.
-	demlo -c -s 70-cover 90-rmsrc album/track
+	demlo -c -s 70-cover -s 90-rmsrc album/track
 
 Change tags inplace with entries from MusicBrainz:
 	demlo -t -r '' album/*
