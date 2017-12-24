@@ -450,7 +450,7 @@ runtime script matters. Mind the double quotes.
 	demlo -e 'o.artist=o.composer; o.title=o.artist .. " - " .. o.title' audio.file
 
 Set track number to first number in input file name:
-	demlo -pre 'o.track=input.filename:match([[.*\/\D*(\d*)\D*]])' audio.file
+	demlo -pre 'o.track=input.path:match([[.*\/\D*(\d*)\D*]])' audio.file
 
 Use the default scripts but keep original value for the 'artist' tag:
 	demlo -post 'o.artist=i.artist' audio.file
