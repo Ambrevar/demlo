@@ -90,9 +90,12 @@ type AlbumKey struct {
 func makeAlbumKey(input *inputInfo) AlbumKey {
 	album := stringNorm(input.tags["album"])
 	if album == "" {
-		// If there is no 'album' tag, use the parent folder path. WARNING: This
-		// heuristic is not working when tracks of different albums are in the same
-		// folder without album tags.
+		// If there is no 'album' tag, use the parent folder path.  The album key is
+		// not transmitted over the network, it is only used for fuzzy-matching.
+		// WARNING: This heuristic does not work when tracks of different albums are
+		// in the same folder without album tags.
+		// TODO: Is the full path more relevant than just the parent or the parent's
+		// parent?
 		album = stringNorm(filepath.Dir(input.path))
 	}
 
