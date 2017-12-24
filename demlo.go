@@ -108,6 +108,7 @@ type Options struct {
 	Getcover   bool
 	Gettags    bool
 	Index      string
+	PrintIndex bool
 	Postscript string
 	Prescript  string
 	Process    bool
@@ -579,6 +580,7 @@ func main() {
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet.")
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
+	flag.BoolVar(&options.PrintIndex, "I", options.PrintIndex, `Output in index format only.`)
 	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua code after the other scripts.")
 	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
@@ -614,14 +616,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Enable index output if stdout is redirected.
+	// Enable index output if stdout is redirected or if printing index.
 	st, _ = os.Stdout.Stat()
-	if (st.Mode() & os.ModeCharDevice) == 0 {
+	if ((st.Mode() & os.ModeCharDevice) == 0) || options.PrintIndex {
 		previewOptions.printIndex = true
 	}
-	// Disable diff preview if stderr does not have a 'TerminalSize'.
+	// Disable diff preview if stderr does not have a 'TerminalSize' or if printing index.
 	st, _ = os.Stderr.Stat()
-	if (st.Mode() & os.ModeCharDevice) == 0 {
+	if ((st.Mode() & os.ModeCharDevice) == 0) || options.PrintIndex {
 		options.Color = false
 		previewOptions.printDiff = false
 	} else if _, _, err := TerminalSize(int(os.Stderr.Fd())); err != nil {
