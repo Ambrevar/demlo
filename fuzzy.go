@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jhprks/damerau"
+	"github.com/ambrevar/damerau"
 )
 
 var (
