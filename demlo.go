@@ -41,11 +41,11 @@ const (
 
 var version = "<tip>"
 
-const usage = `Batch-transcode files with user-written scripts for dynamic tagging
+const usage = `Batch-transcode files with user-written Lua scripts for dynamic tagging
 and encoding.
 
 Folders are processed recursively. Only files with known extensions are processed.
-New extensions can be specified from command-line.
+New extensions can be specified from commandline options.
 
 All flags that do not require an argument are booleans. Without argument, they
 take the true value. To negate them, use the form '-flag=false'.
@@ -54,7 +54,13 @@ When specifying a script or action file, if the name contains a path separator,
 then the path is looked up directly. Else, the name with and without extension
 is searched in the user folder and then in the system folder.
 
+Unless '-p' is used, no action is taken, only the preview is shown.
+
+Tag field names are printed as they are stored in the input and output files.
+
 See ` + URL + ` for more details.
+
+Commandline options come before file arguments.
 `
 
 const (
@@ -577,8 +583,10 @@ func main() {
 	flag.BoolVar(&options.Color, "color", options.Color, "Color output.")
 	flag.IntVar(&options.Cores, "cores", options.Cores, "Run N processes in parallel. If 0, use all online cores.")
 	flag.BoolVar(&options.Debug, "debug", false, "Enable debug messages.")
-	flag.StringVar(&options.Exist, "exist", options.Exist, "Specify action to run when the destination exists. Warning: overwriting may result in undesired behaviour if destination is part of the input.")
-	flag.Var(&options.Extensions, "ext", "Additional extensions to look for when a folder is browsed.")
+	flag.StringVar(&options.Exist, "exist", options.Exist, `Specify action to run when the destination exists.
+    	Warning: overwriting may result in undesired behaviour if destination is part of the input.`)
+	flag.Var(&options.Extensions, "ext", `Additional extensions to look for when a folder is browsed.
+    	`)
 	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet.")
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet.")
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
@@ -589,7 +597,8 @@ func main() {
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
 
 	sFlag := scriptAddFlag{&options.Scripts}
-	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order. This option can be specified several times.`)
+	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order. This option can be specified several times.
+    	`)
 
 	rFlag := scriptRemoveFlag{&options.Scripts}
 	flag.Var(&rFlag, "r", `Remove scripts where the regexp matches a part of the basename.
