@@ -407,15 +407,17 @@ func findInPath(pathlist, subpath string) string {
 // alphabetically-sorted list of files will be chosen.
 func listCode() {
 	list := func(name, folder string, fileList map[string]string) {
-		log.Printf("%v folder: %v", name, folder)
 		f, err := os.Open(folder)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				warning.Print(err)
+				warning.Printf("%v folder %#v: %s", name, folder, err)
+			} else {
+				log.Printf("%v folder: missing", name)
 			}
 			return
 		}
 		defer f.Close()
+		log.Printf("%v folder: %v", name, folder)
 
 		dn, err := f.Readdirnames(0)
 		if err != nil {
