@@ -157,18 +157,8 @@ func (t *transformer) Run(fr *FileRecord) error {
 			}
 		}
 
-		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
-		if encodingChanged || !taglibSupported {
-			err = transformStream(fr, track)
-		} else {
-			err = transformMetadata(fr, track)
-		}
-		if err != nil {
-			fr.error.Print(err)
-			continue
-		}
-
 		// Copy embeddedCovers, externalCovers and onlineCover.
+		// We must process covers now because the input file can be removed after audio processing.
 		for stream, cover := range output.EmbeddedCovers {
 			inputSource := bytes.NewBuffer(fr.embeddedCoverCache[stream])
 			transferCovers(fr, cover, "embedded "+strconv.Itoa(stream), inputSource, input.embeddedCovers[stream].checksum)
@@ -185,6 +175,17 @@ func (t *transformer) Run(fr *FileRecord) error {
 		{
 			inputSource := bytes.NewBuffer(fr.onlineCoverCache)
 			transferCovers(fr, output.OnlineCover, "online", inputSource, input.onlineCover.checksum)
+		}
+
+		// TODO: Add to condition: `|| output.format == "taglib-unsupported-format"`.
+		if encodingChanged || !taglibSupported {
+			err = transformStream(fr, track)
+		} else {
+			err = transformMetadata(fr, track)
+		}
+		if err != nil {
+			fr.error.Print(err)
+			continue
 		}
 	}
 
