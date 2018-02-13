@@ -386,7 +386,7 @@ func printExtensions() {
 		extlist = append(extlist, k)
 	}
 	sort.StringSlice(extlist).Sort()
-	log.Printf("Register extensions: %v", strings.Join(extlist, " "))
+	log.Printf("Accepted extensions: %v", strings.Join(extlist, " "))
 }
 
 func findInPath(pathlist, subpath string) string {
