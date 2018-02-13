@@ -402,9 +402,7 @@ func findInPath(pathlist, subpath string) string {
 	return ""
 }
 
-// When the extension is not specified on command-line and several files share
-// the same basename (extension excluded), then the last file of the
-// alphabetically-sorted list of files will be chosen.
+// Extensions must be in .lua.
 func listCode() {
 	list := func(name, folder string, fileList map[string]string) {
 		f, err := os.Open(folder)
@@ -424,10 +422,17 @@ func listCode() {
 			warning.Print(err)
 			return
 		}
-		sort.StringSlice(dn).Sort()
-		log.Printf("%v: %q", name, dn)
 
+		luaFiles := []string{}
 		for _, v := range dn {
+			if strings.ToLower(Ext(v)) == "lua" {
+				luaFiles = append(luaFiles, v)
+			}
+		}
+		sort.StringSlice(luaFiles).Sort()
+		log.Printf("%v: %q", name, luaFiles)
+
+		for _, v := range luaFiles {
 			fileList[StripExt(v)] = filepath.Join(folder, v)
 			fileList[v] = filepath.Join(folder, v)
 		}
