@@ -76,6 +76,14 @@ func MakeSandbox(logPrint func(v ...interface{})) *lua.State {
 		}
 	}
 
+	// Help function.
+	// When displaying help, we don't want debug.
+	luaHelp := func(L *lua.State) int { return 0 }
+	if logPrint != nil && options.Help != "" {
+		luaHelp, luaDebug = luaDebug, luaHelp
+	}
+
+	sandboxRegister(L, "help", luaHelp)
 	sandboxRegister(L, "debug", luaDebug)
 	sandboxRegister(L, "stringnorm", stringNorm)
 	sandboxRegister(L, "stringrel", stringRel)
@@ -246,5 +254,30 @@ func LoadConfig(config string, options *Options) {
 	L.Pop(1)
 	if err != nil {
 		log.Fatalf("error passing config to go: %s", err)
+	}
+}
+
+// PrintScriptHelp runs 'script' to print the result of the 'help()' function calls.
+// The script does not actually do anything.
+func PrintScriptHelp(script string) {
+	L := MakeSandbox(log.Println)
+
+	// Scripts expect to receive "input", "output", "i" and "o", even if empty.
+	input := inputInfo{}
+	output := outputInfo{}
+	goToLua(L, "input", input)
+	goToLua(L, "output", output)
+	L.GetGlobal("input")
+	L.GetField(-1, "tags")
+	L.SetGlobal("i")
+	L.Pop(1)
+	L.GetGlobal("output")
+	L.GetField(-1, "tags")
+	L.SetGlobal("o")
+	L.Pop(1)
+
+	err := L.DoFile(script)
+	if err != nil {
+		log.Fatalf("error parsing script: %s", err)
 	}
 }

@@ -1,13 +1,29 @@
 -- demlo script
--- Set case in tags either to title case or sentence case.
+help([[
+Set case in tags either to title case or sentence case.
 
--- See https://en.wikipedia.org/wiki/Letter_case.
+GLOBAL VARIABLES
 
--- Global options.
+- scase: boolean
+  If true, use sentence case instead of title case.
+  Only the first letter of every sentence will be capitalized, the other words
+  that are not subject to the rules will be lowercase.
+
+- const: array of strings
+  Words to keep cased as specified.
+
+EXAMPLES
+
+  const = {'FooBar', 'baz'}
+]])
+
 local sentencecase = scase or false
 local const_custom = const or {}
 
 -- TODO: No verb? (am, are, was, is) No word > 3 chars? (against, between, from, into, onto)
+help([[RULES
+]])
+help("- English prepositions.")
 const_en = const_en or {
 	'a',
 	'an',
@@ -29,6 +45,7 @@ const_en = const_en or {
 	'via',
 }
 
+help("- Music terms (CD, feat, etc.).")
 const_music = const_music or {
 	'CD',
 	'CD1',
@@ -46,6 +63,7 @@ const_music = const_music or {
 	'FX',
 }
 
+help("- Common acronyms (e.g. OK).")
 const_common = const_common or {
 	'KO',
 	'OK',
@@ -54,6 +72,7 @@ const_common = const_common or {
 }
 
 -- Some common units.
+help("- Common units.")
 const_units = const_units or {
 	'bps',
 	'Gbps',
@@ -71,8 +90,8 @@ const_units = const_units or {
 	's', -- second
 }
 
--- Word starting in Mac[X] where [X] is a consonant. See http://visca.com/regexdict/.
--- The following words are capitalized normally as opposed to MacDonalds and McCarthy.
+help([[- Word starting in Mac[X] where [X] is a consonant.
+  The following words are capitalized normally as opposed to MacDonalds and McCarthy.]])
 const_mac = const_mac or {
 	'Mache',
 	'Machete',
@@ -160,21 +179,13 @@ local debug_output = {
 	macx = {},
 }
 
--- "Constants" are written as provided, except if they begin a sentence in which
--- case the first letter is uppercase.
---
--- * Roman numerals are left as is. If lowercase, they are not considered as
--- roman numerals to prevent conflict with common words.
---
--- * Names like D'Arcy, O'Reilly, McDonald and MacNeil are properly handled.
---
--- Options:
---
--- sentencecase: when set to true, only the first letter of every sentence will
--- be capitalized, the other words that are not subject to the rules will be
--- lowercase.
---
--- This script was inspired by http://www.pement.org/awk/titlecase.awk.txt.
+help([[
+- Constants (both from 'const' and hard-coded values) are written as provided,
+  except if they begin a sentence in which case the first letter is uppercase.
+- Roman numerals are left as is. If lowercase, they are not considered as
+  roman numerals to prevent conflicts with common words.
+- Names like D'Arcy, O'Reilly, McDonald and MacNeil are properly handled.
+]])
 local function setcase(input, const, sentencecase)
 	-- Process words from 'input' one by one and append them to 'output'.
 	local output = {}
@@ -291,3 +302,10 @@ end
 if #debug_str ~= 0 then
 	debug("Script case:" .. debug_str)
 end
+
+help([[
+REFERENCES
+- http://www.pement.org/awk/titlecase.awk.txt (Original inspiration)
+- https://en.wikipedia.org/wiki/Letter_case
+- http://visca.com/regexdict/ (To find words starting with Mac[X])
+]])

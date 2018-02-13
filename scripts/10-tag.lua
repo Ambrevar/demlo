@@ -1,18 +1,19 @@
 -- demlo script
--- Sanitize tags.
+help([[
+Sanitize tags dynamically.
 
--- Unknown tag fields are removed.
---
--- Tags 'album_artist', 'artist', and 'composer' are easily mixed up. You may
--- need to switch their values from command-line on a per-album basis.
---
--- Note that the term "classical" refers to both western art music from 1000 AD
--- to present time, and the era from 1750 to 1820. In this script the genre
--- "Classical" refers to the 1750-1820 era.
---
--- References:
--- http://musicbrainz.org/doc/MusicBrainz_Picard/Tags/Mapping
--- http://musicbrainz.org/doc/Classical_Music_FAQ
+RULES
+
+- Unknown tag fields are removed.
+
+- Tags 'album_artist', 'artist', and 'composer' are easily mixed up. You may
+  need to switch their values from command-line on a per-album basis.
+
+- Note that the term "classical" refers to both western art music from 1000 AD
+  to present time, and the era from 1750 to 1820. In this script the genre
+  "Classical" refers to the 1750-1820 era.
+]])
+
 
 -- Start from a clean set of tags.
 local tags = {}
@@ -48,11 +49,13 @@ end
 
 tags.title = empty(o.title) and 'Unknown Title' or o.title
 
--- Genre: since this is not universal by nature, we avoid setting a genre in
--- tags, except for special cases like soundtracks and classical music. We
--- analyse the input genre and make sure it fits an era. This is sometimes
--- ambiguous. You may be better off leaving it empty. We convert to lowercase
--- and spaces to underscores to ease matching.
+help([[
+- Genre: since this is not universal by nature, we avoid setting a genre in
+  tags, except for special cases like soundtracks and classical music. We
+  analyse the input genre and make sure it fits an era. This is sometimes
+  ambiguous. You may be better off leaving it empty. We convert to lowercase
+  and spaces to underscores to ease matching.
+]])
 tags.genre = o.genre
 local relmax = 0
 local genre_classical = {
@@ -93,17 +96,29 @@ else
 	tags.genre = genre
 end
 
--- Disc and track numbers only matter if the file is part of an album. Remove
--- the leading zeros and consider the first number only (e.g. convert "01/17" to
--- "1").
+help([[
+- Disc and track numbers only matter if the file is part of an album. Remove
+  the leading zeros and consider the first number only (e.g. convert "01/17" to
+  "1".
+]])
 tags.disc = not empty(o.album) and not empty(o.disc) and o.disc:match([[0*(\d*)]]) or nil
 tags.track = not empty(o.album) and not empty(o.track) and o.track:match([[0*(\d*)]]) or nil
 
--- Date: Only use the full year. Extract from the date the first number
--- with 4 digits or more.
+help([[
+- Date: Only use the full year. Extract from the date the first number
+  with 4 digits or more.
+]])
 tags.date = o.date and o.date:match([[\d\d\d\d+]]) or nil
 tags.date = tags.date and tags.date or (o.year and o.year:match([[\d\d\d\d+]]) or '')
 
 -- Replace all tags.
 output.tags = tags
 o = output.tags
+
+
+help([[
+REFERENCES
+
+- http://musicbrainz.org/doc/MusicBrainz_Picard/Tags/Mapping
+- http://musicbrainz.org/doc/Classical_Music_FAQ
+]])

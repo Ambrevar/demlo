@@ -1,14 +1,22 @@
 -- demlo script
--- Remove embedded covers. Convert to jpeg. Skip covers beyond quality threshold. Skip duplicates.
+help([[
+Process album covers / artwork.
+
+Remove embedded covers.
+Convert to jpeg.
+Skip covers beyond quality threshold.
+Skip duplicates.
+
+Input format names are different from the output formats which use the Go
+nomenclature. Default output formats are 'gif', 'jpeg' and 'png'.
+
+Demlo skips covers with no output path. It copies covers with no codec or no
+format. It transcodes covers when the codec or the format are different from the
+default.
+]])
 
 -- Even though FFmpeg makes a distinction between format (container) and codec,
 -- this is not useful for covers.
-
--- Input format names are different from the output formats which use Go
--- nomenclature. Default output formats are 'gif', 'jpeg' and 'png'.
-
--- Demlo skips covers with no path. It copies covers with no parameters or no
--- format. It transcodes covers with non-default parameters and format.
 
 -- Properties
 local LIMIT_LOW = 128

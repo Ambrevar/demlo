@@ -113,6 +113,7 @@ type Options struct {
 	Extensions  stringSetFlag
 	Getcover    bool
 	Gettags     bool
+	Help        string
 	Index       string
 	IndexOutput string
 	PrintIndex  bool
@@ -603,6 +604,7 @@ func main() {
     	`)
 	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet."+onlineMessage)
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet."+onlineMessage)
+	flag.StringVar(&options.Help, "h", options.Help, `Show help for the specified script.`)
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
 	flag.StringVar(&options.IndexOutput, "o", options.IndexOutput, `Write index to specified output file.  Append to file if it exists.`)
@@ -624,6 +626,21 @@ func main() {
 
 	if *flagVersion {
 		fmt.Println(application, version, copyright)
+		return
+	}
+
+	// We need to list the script files before we can display their help messages.
+	listCode()
+
+	if options.Help != "" {
+		options.Debug = false
+		log.SetPrefix("")
+		path, _, err := findCode(options.Help, cache.scriptFiles)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Print()
+		PrintScriptHelp(path)
 		return
 	}
 
@@ -670,7 +687,6 @@ func main() {
 	}
 
 	printExtensions()
-	listCode()
 	cacheScripts()
 	cacheAction(actionExist, options.Exist)
 	cacheIndex()

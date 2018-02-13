@@ -1,8 +1,10 @@
 -- demlo script
--- Fix punctuation.
+help([[
+Fix punctuation.
 
--- It is hard to guess the language, thus fall back to English rules: No space
--- before mark, one space after it.
+It is hard to guess the language, thus we fall back to the English rules: No
+space before the mark, one space after it.
+]])
 
 local function fix_punctuation(input)
 	-- Convert underscore to space. Do this first.

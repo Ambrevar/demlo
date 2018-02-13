@@ -1,17 +1,26 @@
 -- demlo script
--- FFmpeg can be used to transcode the file (change format and/or codec).
--- See ffmpeg(1).
+help([[
+Set the format and/or codec parameters of the audio stream.
 
--- Here we set both the codec parameters and the format (the container in FFmpeg speaking).
--- Copy stream only when 'bps' is higher than 'input.bitrate'.
--- Format is kept if supported.
+Demlo uses FFmpeg for transcoding.
+We set both the codec parameters and the container ("format" in FFmpeg speaking).
+The input container is kept _only if supported_.
+
+GLOBAL OPTIONS
+
+- bps: integer
+  Bitrate of the audio stream in bits per second.
+  If 'bps' is not specified, copy stream.
+  'bps' should not be set to 'input.bitrate', or the bitrate of the first track
+  will propagate to other tracks.
+
+EXAMPLES
+
+  bps=192000
+  -- Set the bitrate to 192k.
+]])
 
 -- TODO: Check which format supports video streams. (E.g. for embedded covers.)
-
--- Global options.
--- If 'bps' is not specified, assume highest value. 'bps' should not be
--- set to 'input.bitrate', or the bitrate of the first track will propagate to
--- other tracks.
 local bitrate = bps or 9999999
 
 -- Properties.
@@ -94,3 +103,9 @@ elseif output.format == 'mp3' then
 
 	output.parameters = {'-c:a', 'libmp3lame', '-q:a', tostring(qual)}
 end
+
+help([[
+REFERENCES
+
+- The ffmpeg(1) man page.
+]])

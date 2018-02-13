@@ -1,18 +1,35 @@
 -- demlo script
--- Set the output path according to tags.
 
--- Note that 'track' refers to the track number, not the title.
--- We make sure no unnecessary subfolders are created.
--- Extension is set from format.
--- Pad zeros (2 digits) in track number for file browsers without numeric sorting capabilities.
-
--- Global options.
 local osseparator = ossep or '/'
 -- Relative paths are OK, but '~' does not get expanded.
 local library = lib or os.getenv('HOME')  .. osseparator .. 'music'
 -- Replace OS separators in folder names by ' - ' in the sane() function.
--- Some filesystems require that more characters get replaced, such as ':'.
 local fsfilter = fsf or [[\s*]] .. osseparator .. [[\s*]]
+
+help([[
+Set the output path according to tags.
+
+Note that 'track' refers to the track number, not the title.
+
+GLOBAL OPTIONS
+
+- ossep: string (default: '/')
+  OS path separator.
+
+- lib: string (default: ']] .. library .. [[')
+  Path to the music library.
+
+- fsf: regular expression (default: ']] .. fsfilter .. [[')
+  Some filesystems don't accept all characters and those need be replaced.
+  Every element of the output path which matches this regular expression will be
+  replaced by " - ".
+
+RULES
+
+We make sure no unnecessary subfolders are created.
+Extension is set from format.
+We pad zeros (2 digits) in track number for file browsers without numeric sorting capabilities.
+]])
 
 local function empty(s)
 	if type(s) ~= 'string' or s == '' then
@@ -42,7 +59,8 @@ if not empty (o.track) and tonumber(o.track) then
 	track_padded = string.format('%02d', o.track)
 end
 
--- We try to guess if the genre belongs to classical music.
+
+help("We try to guess if the genre belongs to classical music.")
 local genre = o.genre and o.genre:lower():gsub([[\s]],'_')
 local classical = false
 if genre then
@@ -71,11 +89,12 @@ appendpath(album_artist)
 -- 'osseparator' cannot be appended with 'appendpath'.
 output.path = output.path .. osseparator
 
+help([[
+Since classical pieces usually get recorded several times, the date is not
+very relevant. Thus it is preferable to sort classical albums by name on the filesystem.
+]])
 if not empty(o.album) then
 	if classical then
-		-- Since classical pieces usually get recorded several times, the date is
-		-- not very relevant. Thus it is preferable to sort albums by name on the
-		-- filesystem.
 		appendpath(o.album)
 		if not empty(o.performer) then
 			appendpath(' (' .. o.performer ..
