@@ -1,5 +1,8 @@
 -- demlo script
--- Set codec parameters. Set format (container).
+-- FFmpeg can be used to transcode the file (change format and/or codec).
+-- See ffmpeg(1).
+
+-- Here we set both the codec parameters and the format (the container in FFmpeg speaking).
 -- Copy stream only when 'bps' is higher than 'input.bitrate'.
 -- Format is kept if supported.
 
