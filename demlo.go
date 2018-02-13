@@ -683,4 +683,7 @@ func main() {
 		p.log <- fr
 	}
 	p.Close()
+	if !options.Process {
+		log.Printf("Preview mode, no file was processed.  Use commandline option '-p' to apply the changes.")
+	}
 }
