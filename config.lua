@@ -50,4 +50,4 @@ Process = false
 -- Thus the names matter, e.g. 'path' can be influenced by the modifications
 -- made by 'tag', so we name the scripts with a prefix number so that 'tag' is
 -- run before 'path'.
-Scripts = {'10-tag', '20-sub', '30-case', '40-punctuation', '50-encoding', '60-path', '70-cover'}
+Scripts = {'10-tag', '15-discfrompath', '20-sub', '30-case', '40-punctuation', '50-encoding', '60-path', '70-cover'}
