@@ -131,12 +131,24 @@ func (a *analyzer) Run(fr *FileRecord) error {
 		}
 	}
 
-	if previewOptions.printIndex {
-		// Should never fail.
+	if previewOptions.printIndex || options.IndexOutput != "" {
+		// Marshaling should never fail.
 		buf1, _ := json.Marshal(input.path)
 		buf2, _ := json.MarshalIndent(fr.output, "", "\t")
 		stdoutMutex.Lock()
-		fmt.Printf("%s: %s,\n", buf1, buf2)
+		if options.IndexOutput != "" {
+			fd, err := os.OpenFile(options.IndexOutput, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+			if err != nil {
+				fr.debug.Printf("Failed to write index file %s: %s", options.IndexOutput, err)
+			} else {
+				fmt.Fprintf(fd, "%s: %s,\n", buf1, buf2)
+				fd.Close()
+			}
+			fmt.Printf("%s: %s,\n", buf1, buf2)
+		}
+		if previewOptions.printIndex {
+			fmt.Printf("%s: %s,\n", buf1, buf2)
+		}
 		stdoutMutex.Unlock()
 	}
 

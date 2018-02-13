@@ -106,19 +106,20 @@ var (
 )
 
 type Options struct {
-	Color      bool
-	Cores      int
-	Debug      bool
-	Exist      string
-	Extensions stringSetFlag
-	Getcover   bool
-	Gettags    bool
-	Index      string
-	PrintIndex bool
-	Postscript string
-	Prescript  string
-	Process    bool
-	Scripts    []string
+	Color       bool
+	Cores       int
+	Debug       bool
+	Exist       string
+	Extensions  stringSetFlag
+	Getcover    bool
+	Gettags     bool
+	Index       string
+	IndexOutput string
+	PrintIndex  bool
+	Postscript  string
+	Prescript   string
+	Process     bool
+	Scripts     []string
 }
 
 // Identify visited cover files with {path,checksum} as map key.
@@ -597,7 +598,7 @@ func main() {
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet."+onlineMessage)
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
-	flag.BoolVar(&options.PrintIndex, "I", options.PrintIndex, `Output in index format only.`)
+	flag.StringVar(&options.IndexOutput, "o", options.IndexOutput, `Write index to specified output file.  Append to file if it exists.`)
 	flag.StringVar(&options.Postscript, "post", options.Postscript, "Run Lua code after the other scripts.")
 	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
@@ -641,14 +642,14 @@ func main() {
 		}
 	}
 
-	// Enable index output if stdout is redirected or if printing index.
+	// Enable index output if stdout is redirected.
 	st, _ = os.Stdout.Stat()
-	if ((st.Mode() & os.ModeCharDevice) == 0) || options.PrintIndex {
+	if (st.Mode() & os.ModeCharDevice) == 0 {
 		previewOptions.printIndex = true
 	}
-	// Disable diff preview if stderr does not have a 'TerminalSize' or if printing index.
+	// Disable diff preview if stderr does not have a 'TerminalSize'.
 	st, _ = os.Stderr.Stat()
-	if ((st.Mode() & os.ModeCharDevice) == 0) || options.PrintIndex {
+	if (st.Mode() & os.ModeCharDevice) == 0 {
 		options.Color = false
 		previewOptions.printDiff = false
 	} else if _, _, err := TerminalSize(int(os.Stderr.Fd())); err != nil {
