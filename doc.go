@@ -71,8 +71,8 @@ The program's default behaviour can be changed from the user configuration file.
 can be changed. The configuration file is loaded on startup, before parsing the
 command-line options. Review the default value of the CLI flags with 'demlo -h'.
 
-If you wish to use no configuration file, set the environment variable DEMLORC
-to ".".
+If you wish to use no configuration file, set the environment variable
+DEMLO_CONFIG to ".".
 
 
 
@@ -395,8 +395,8 @@ The format is specified by FFmpeg this time. See the comments on 'format' for
 Files
 
 User configuration:
-	$XDG_CONFIG_HOME/demlo/demlorc (Default: $HOME/.config/demlo/demlorc)
-This must be a Lua file. See the 'demlorc' file provided with this package for
+	$XDG_CONFIG_HOME/demlo/config.lua (Default: $HOME/.config/demlo/config.lua)
+This must be a Lua file. See the 'config.lua' file provided with this package for
 an exhaustive list of options.
 
 Folder containing the official scripts:

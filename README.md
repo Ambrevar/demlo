@@ -46,7 +46,7 @@ To build statically (assuming you have all the required static libraries at hand
 Install the files as follows:
 
 	demlo   -> /usr/{local/}bin/demlo
-	demlorc -> /usr/{local/}share/demlo/demlorc
+	config.lua -> /usr/{local/}share/demlo/config.lua
 	scripts/ -> /usr/{local/}share/demlo/scripts/
 
 ## Usage

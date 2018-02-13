@@ -535,9 +535,9 @@ func init() {
 	cache.actionFiles = make(map[string]string)
 	cache.scriptFiles = make(map[string]string)
 
-	config = os.Getenv("DEMLORC")
+	config = os.Getenv("DEMLO_CONFIG")
 	if config == "" {
-		config = filepath.Join(XDG_CONFIG_HOME, application, application+"rc")
+		config = filepath.Join(XDG_CONFIG_HOME, application, "config.lua")
 	}
 }
 
