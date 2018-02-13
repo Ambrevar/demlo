@@ -1,27 +1,40 @@
--- Demlo configuration file (Lua)
+--[[ Demlo configuration file
+All the commandline options can get a default value from here.
+Commandline values take precedence.
+--]]
 
--- No colors by default since it may not work on all terminals.
+-- Colors may not work on all terminals.
 Color = true
 
 -- Number of cores to use (0 for all).
 Cores = 0
 
--- Path to 'exist' action, i.e. what to do when destination exists. Set
--- 'output.write' to "over", "skip", or anything else for appending a random
--- suffix to the file name.
+--[[ When the destination exit, the "exist" action is taken.
+An action is a Lua script which sets the variable 'output.write' to the following possible values:
+- "over": overwrite.
+- "skip": don't do anything.
+- nil (or anything else): append a random suffix to the new file.
+
+The following variable specifies the path or name of the default action script.
+--]]
 Exist = ''
 
--- Extensions to look for when a folder is browsed. Use default if unset.
+-- Extensions to look for when a folder is browsed.
+-- The following variable is a map which keys are the extensions and the values are 'true'.
 Extensions = {}
 ext = {'aac', 'ape', 'flac', 'm4a', 'mp3', 'mp4', 'mpc', 'ogg', 'wav', 'wv'}
 for _, v in ipairs(ext) do
 	Extensions[v]=true
 end
 
--- Fetch cover from an online database.
+-- Whther to fetch cover from an online database.
+-- Since Internet queries slow down the process, it's recommended to only turn
+-- it on from the commandline when needed.
 Getcover = false
 
 -- Fetch tags from an online database.
+-- Since Internet queries slow down the process, it's recommended to only turn
+-- it on from the commandline when needed.
 Gettags = false
 
 -- Lua code to run before and after the other scripts, respectively.
@@ -32,6 +45,9 @@ Postscript = ''
 Process = false
 
 -- Scripts to run by default.
--- Demlo will run them in lexicographic order.
--- Order matters, e.g. 'path' can be influenced by the modifications made by 'tag'.
+-- Scripts can later be added or removed via the commandline.
+-- Demlo runs them in lexicographic order.
+-- Thus the names matter, e.g. 'path' can be influenced by the modifications
+-- made by 'tag', so we name the scripts with a prefix number so that 'tag' is
+-- run before 'path'.
 Scripts = {'10-tag', '20-sub', '30-case', '40-punctuation', '50-encoding', '60-path', '70-cover'}
