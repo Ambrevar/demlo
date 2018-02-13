@@ -65,7 +65,7 @@ const (
 	indexMaxsize    = 10 * 1024 * 1024
 	codeMaxsize     = 10 * 1024 * 1024
 
-	existWriteOver   = "over"
+	existWriteOver   = "overwrite"
 	existWriteSkip   = "skip"
 	existWriteSuffix = "suffix"
 

@@ -11,7 +11,7 @@ Cores = 0
 
 --[[ When the destination exit, the "exist" action is taken.
 An action is a Lua script which sets the variable 'output.write' to the following possible values:
-- "over": overwrite.
+- "overwrite": overwrite.
 - "skip": don't do anything.
 - nil (or anything else): append a random suffix to the new file.
 

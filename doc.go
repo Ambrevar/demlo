@@ -124,7 +124,7 @@ comparing the input file and the existing destination.
 The writing rules can be tweaked the following way:
 
 	output.write = 'skip' // Skip current file.
-	output.write = 'over' // Overwrite existing destination.
+	output.write = 'overwrite' // Overwrite existing destination.
 	output.write = '' // Anything else: append random suffix (default)
 
 Word of caution: overwriting breaks Demlo's rule of not altering existing files.
