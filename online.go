@@ -195,7 +195,7 @@ func (c *ReleaseIDCache) get(albumKey AlbumKey, fr *FileRecord) (ReleaseID, Reco
 	return e.releaseID, recordingID, err
 }
 
-// Warning: not concurrent-safe, caller must mutex the call.
+// WARNING: not concurrent-safe, caller must mutex the call.
 // We look for exact matches first to speed-up the process.
 func (c *ReleaseIDCache) fuzzyMatch(albumKey AlbumKey) (r *releaseIDEntry, exactMatch bool) {
 	r = c.v[albumKey]

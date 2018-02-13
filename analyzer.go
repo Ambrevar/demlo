@@ -103,13 +103,13 @@ func (a *analyzer) Run(fr *FileRecord) error {
 		if options.Gettags {
 			releaseID, defaultTags, err = GetOnlineTags(fr)
 			if err != nil {
-				fr.debug.Print("Online tags query error: ", err)
+				fr.warning.Print("Online tags query error: ", err)
 			}
 		}
 		if options.Getcover {
 			fr.onlineCoverCache, input.onlineCover, err = GetOnlineCover(fr, releaseID)
 			if err != nil {
-				fr.debug.Print("Online cover query error: ", err)
+				fr.warning.Print("Online cover query error: ", err)
 			}
 		}
 	}
