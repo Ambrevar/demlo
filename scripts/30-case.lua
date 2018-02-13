@@ -72,6 +72,7 @@ const_units = const_units or {
 }
 
 -- Word starting in Mac[X] where [X] is a consonant. See http://visca.com/regexdict/.
+-- The following words are capitalized normally as opposed to MacDonalds and McCarthy.
 const_mac = const_mac or {
 	'Mache',
 	'Machete',
@@ -122,9 +123,10 @@ const_mac = const_mac or {
 	'Macrospore',
 }
 
-local function pluralize(const)
+-- Return the list of the plurals of the input.
+local function pluralize(word_list)
 	local result = {}
-	for _, word in ipairs(const) do
+	for _, word in ipairs(word_list) do
 		local lastchar = word:sub(-1)
 		local plural
 		if lastchar == 'y' then

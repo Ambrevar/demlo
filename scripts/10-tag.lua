@@ -25,7 +25,7 @@ local function empty(s)
 	end
 end
 
-local function tagpriority(...)
+local function first_non_empty(...)
 	local args = {...}
 	for _, v in pairs(args) do
 		if not empty(v) then return v end
@@ -35,11 +35,11 @@ end
 tags.album = o.album
 
 -- Mostly used for classical music.
-tags.performer = tagpriority(o.performer, o.conductor, o.orchestra, o.arranger)
+tags.performer = first_non_empty(o.performer, o.conductor, o.orchestra, o.arranger)
 
-tags.artist = tagpriority(o.artist, o.composer, o.album_artist, tags.performer, 'Unknown Artist')
+tags.artist = first_non_empty(o.artist, o.composer, o.album_artist, tags.performer, 'Unknown Artist')
 
-tags.album_artist = tagpriority(o.album_artist, tags.artist)
+tags.album_artist = first_non_empty(o.album_artist, tags.artist)
 -- If 'album_artist == "various artists"' (e.g. for compilations) then we use
 -- 'album' as 'album_artist' since it is more meaningful.
 if stringrel(stringnorm (o.album_artist), 'variousartist') > 0.7 then

@@ -1,7 +1,8 @@
 -- demlo script
 -- Set the output path according to tags.
 
--- Make sure no unnecessary subfolders are created.
+-- Note that 'track' refers to the track number, not the title.
+-- We make sure no unnecessary subfolders are created.
 -- Extension is set from format.
 -- Pad zeros (2 digits) in track number for file browsers without numeric sorting capabilities.
 
@@ -25,11 +26,14 @@ local function sane(s)
 	return s:gsub(fsfilter, ' - ')
 end
 
-local function append(field, before, after)
-	if not empty(field) then
-		before = before or ''
-		after = after or ''
-		output.path = output.path .. sane(before) .. sane(field) .. sane(after)
+-- Append arguments to path if they or not empty.
+-- Strip them with the 'sane' function before appending.
+local function appendpath(...)
+	local path_elements = {...}
+	for _, v in pairs(path_elements) do
+		if not empty(v) then
+			output.path = output.path .. sane(v)
+		end
 	end
 end
 
@@ -63,7 +67,8 @@ end
 output.path = library .. osseparator
 local album_artist = not empty(o.album_artist) and o.album_artist or
 	(not empty(o.artist) and o.artist or 'Unknown Artist')
-append(album_artist)
+appendpath(album_artist)
+-- 'osseparator' cannot be appended with 'appendpath'.
 output.path = output.path .. osseparator
 
 if not empty(o.album) then
@@ -71,21 +76,32 @@ if not empty(o.album) then
 		-- Since classical pieces usually get recorded several times, the date is
 		-- not very relevant. Thus it is preferable to sort albums by name on the
 		-- filesystem.
-		append(o.album)
-		append(o.performer, ' (', (not empty(o.date) and (', ' .. sane(o.date)) or '') .. ')')
+		appendpath(o.album)
+		if not empty(o.performer) then
+			appendpath(' (' .. o.performer ..
+									 (not empty(o.date) and (', ' .. sane(o.date)) or '')
+									 .. ')'
+			)
+		end
 	else
-		append(o.date, nil, '. ')
-		append(o.album)
+		if not empty(o.date) then
+			appendpath(o.date .. '. ')
+		end
+		appendpath(o.album)
 	end
-	append(o.disc, ' - Disc ')
+	if not empty(o.disc) then
+		appendpath(' - Disc ' .. o.disc)
+	end
 	output.path = output.path .. osseparator
-	append(track_padded, nil, '. ')
+	if not empty(track_padded) then
+		appendpath(track_padded .. '. ')
+	end
 end
 
-if o.artist ~= o.album_artist then
-	append(o.artist, nil, ' - ')
+if o.artist and o.artist ~= o.album_artist then
+	appendpath(o.artist .. ' - ')
 end
-append(o.title)
+appendpath(o.title)
 
 local ext = empty(output.format) and input.format.format_name or output.format
-append('.' .. ext)
+appendpath('.' .. ext)
