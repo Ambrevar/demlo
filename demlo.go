@@ -580,6 +580,12 @@ func main() {
 		flag.PrintDefaults()
 	}
 
+	_, fpcalcNotFound := exec.LookPath("fpcalc")
+	onlineMessage := ""
+	if fpcalcNotFound != nil {
+		onlineMessage = "\n    	(Not available since program 'fpcalc' is not installed.)"
+	}
+
 	flag.BoolVar(&options.Color, "color", options.Color, "Color output.")
 	flag.IntVar(&options.Cores, "cores", options.Cores, "Run N processes in parallel. If 0, use all online cores.")
 	flag.BoolVar(&options.Debug, "debug", false, "Enable debug messages.")
@@ -587,8 +593,8 @@ func main() {
     	Warning: overwriting may result in undesired behaviour if destination is part of the input.`)
 	flag.Var(&options.Extensions, "ext", `Additional extensions to look for when a folder is browsed.
     	`)
-	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet.")
-	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet.")
+	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet."+onlineMessage)
+	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet."+onlineMessage)
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
 	flag.BoolVar(&options.PrintIndex, "I", options.PrintIndex, `Output in index format only.`)
@@ -626,6 +632,13 @@ func main() {
 	_, err = exec.LookPath("ffprobe")
 	if err != nil {
 		log.Fatal(err)
+	}
+	if fpcalcNotFound != nil {
+		if options.Gettags || options.Getcover {
+			warning.Print("Program 'fpcalc' not installed, online queries disabled")
+			options.Getcover = false
+			options.Gettags = false
+		}
 	}
 
 	// Enable index output if stdout is redirected or if printing index.
