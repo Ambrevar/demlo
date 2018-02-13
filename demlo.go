@@ -273,7 +273,7 @@ type outputInfo struct {
 	ExternalCovers map[string]outputCover `lua:"externalcovers"`
 	OnlineCover    outputCover            `lua:"onlinecover"`
 	Write          string                 `lua:"write"`
-	Rmsrc          bool                   `lua:"rmsrc"`
+	Removesource   bool                   `lua:"removesource"`
 }
 
 type outputStatus int
