@@ -381,6 +381,20 @@ func printExtensions() {
 	log.Printf("Register extensions: %v", strings.Join(extlist, " "))
 }
 
+func findInPath(pathlist, subpath string) string {
+	for _, dir := range filepath.SplitList(pathlist) {
+		if dir == "" {
+			dir = "."
+		}
+		file := filepath.Join(dir, subpath)
+		_, err := os.Stat(file)
+		if err == nil {
+			return file
+		}
+	}
+	return ""
+}
+
 // When the extension is not specified on command-line and several files share
 // the same basename (extension excluded), then the last file of the
 // alphabetically-sorted list of files will be chosen.
@@ -408,20 +422,6 @@ func listCode() {
 			fileList[StripExt(v)] = filepath.Join(folder, v)
 			fileList[v] = filepath.Join(folder, v)
 		}
-	}
-
-	findInPath := func(pathlist, subpath string) string {
-		for _, dir := range filepath.SplitList(pathlist) {
-			if dir == "" {
-				dir = "."
-			}
-			file := filepath.Join(dir, subpath)
-			_, err := os.Stat(file)
-			if err == nil {
-				return file
-			}
-		}
-		return ""
 	}
 
 	systemScriptRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
@@ -538,6 +538,9 @@ func init() {
 	config = os.Getenv("DEMLO_CONFIG")
 	if config == "" {
 		config = filepath.Join(XDG_CONFIG_HOME, application, "config.lua")
+		if _, err := os.Stat(config); err != nil {
+			config = findInPath(XDG_DATA_DIRS, filepath.Join(application, "config.lua"))
+		}
 	}
 }
 
