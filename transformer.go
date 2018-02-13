@@ -54,7 +54,10 @@ func (t *transformer) Run(fr *FileRecord) error {
 			// in-place.
 			if output.Write == existWriteSkip && (output.Path != input.path || !output.Removesource) {
 				if output.Removesource {
-					fr.debug.Printf("Remove source %q", input.path)
+					// If the user has explicitly requested WriteSkip and
+					// Removesource, it's probably because the exisintg files
+					// have priority over the input files.
+					fr.info.Printf("Remove source %q", input.path)
 					err := os.Remove(input.path)
 					if err != nil {
 						fr.error.Println(err)
@@ -290,7 +293,7 @@ func transformStream(fr *FileRecord, track int) error {
 			return err
 		}
 	} else if output.Removesource {
-		fr.debug.Printf("Remove source %q", input.path)
+		fr.info.Printf("Remove source %q", input.path)
 		err := os.Remove(input.path)
 		if err != nil {
 			fr.error.Println(err)
@@ -489,27 +492,28 @@ func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string)
 }
 
 func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSource io.Reader, checksum string) {
-	var err error
 	if cover.Path == "" {
 		return
 	}
+
 	if len(cover.Parameters) == 0 || cover.Format == "" {
-		cover.Path, err = makeCoverDst(fr, cover.Path, fr.input.path, checksum)
+		coverNewPath, err := makeCoverDst(fr, cover.Path, fr.input.path, checksum)
 		if err != nil {
 			fr.error.Print(err)
 			return
 		}
-		if cover.Path == "" {
-			// Identical file exists.
+		if coverNewPath == "" {
+			fr.debug.Printf("Cover %s skipped, identical file exists in %v", coverName, cover.Path)
 			return
 		}
 
-		fd, err := os.OpenFile(cover.Path, os.O_WRONLY|os.O_TRUNC, 0666)
+		fd, err := os.OpenFile(coverNewPath, os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
 			fr.warning.Println(err)
 			return
 		}
 
+		fr.info.Printf("Cover %v -> %s", coverName, coverNewPath)
 		if _, err = io.Copy(fd, inputSource); err != nil {
 			fr.warning.Println(err)
 			return
@@ -517,28 +521,29 @@ func transferCovers(fr *FileRecord, cover outputCover, coverName string, inputSo
 		fd.Close()
 
 	} else {
-		cover.Path, err = makeCoverDst(fr, cover.Path, fr.input.path, checksum)
+		coverNewPath, err := makeCoverDst(fr, cover.Path, fr.input.path, checksum)
 		if err != nil {
 			fr.error.Print(err)
 			return
 		}
-		if cover.Path == "" {
-			// Identical file exists.
+		if coverNewPath == "" {
+			fr.debug.Printf("Cover %s skipped, identical file exists in %v", coverName, cover.Path)
 			return
 		}
 
 		cmdArray := []string{"-nostdin", "-v", "error", "-y", "-i", "-", "-an", "-sn"}
 		cmdArray = append(cmdArray, cover.Parameters...)
-		cmdArray = append(cmdArray, "-f", cover.Format, cover.Path)
+		cmdArray = append(cmdArray, "-f", cover.Format, coverNewPath)
 
-		fr.debug.Printf("Cover %v parameters: %q", coverName, cmdArray)
+		fr.info.Printf("Cover %v -> %s", coverName, coverNewPath)
+		fr.debug.Printf("FFmpeg parameters: %q", cmdArray)
 
 		cmd := exec.Command("ffmpeg", cmdArray...)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		cmd.Stdin = inputSource
 
-		_, err := cmd.Output()
+		_, err = cmd.Output()
 		if err != nil {
 			fr.warning.Printf(stderr.String())
 			return

@@ -256,21 +256,21 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		case existWriteOver:
 			if output.Path == input.path {
 				if output.Removesource {
-					fr.warning.Println("write file in-place:", output.Path)
+					fr.warning.Println("will write in-place the file", output.Path)
 				} else {
 					fr.error.Print("cannot overwrite and keep source file at the same time:", input.path)
 				}
 			} else {
-				fr.warning.Println("overwrite existing destination:", output.Path)
+				fr.warning.Println("will overwrite existing destination", output.Path)
 				if output.Removesource {
 					fr.warning.Println("remove source:", input.path)
 				}
 			}
 		case existWriteSkip:
 			if output.Path == input.path && output.Removesource {
-				fr.warning.Println("write file in-place:", output.Path)
+				fr.warning.Println("will write in-place the file", output.Path)
 			} else {
-				fr.warning.Println("skip existing destination:", output.Path)
+				fr.warning.Println("will skip existing destination", output.Path)
 				if output.Removesource {
 					fr.warning.Println("remove source:", input.path)
 				}
@@ -279,18 +279,18 @@ func (a *analyzer) RunAllScripts(fr *FileRecord, track int, defaultTags map[stri
 		default:
 			output.Write = existWriteSuffix
 			if output.Path == input.path && output.Removesource {
-				fr.warning.Println("write file in-place:", output.Path)
+				fr.warning.Println("will write in-place the file", output.Path)
 			} else {
-				fr.warning.Println("append suffix to existing destination:", output.Path)
+				fr.warning.Println("will append suffix to output file because of existing destination", output.Path)
 				if output.Removesource {
-					fr.warning.Println("remove source:", input.path)
+					fr.warning.Println("will remove source", input.path)
 				}
 			}
 		}
 	} else {
 		// Destination does not exist.
 		if output.Removesource {
-			fr.warning.Println("remove source:", input.path)
+			fr.warning.Println("will remove source", input.path)
 		}
 	}
 
