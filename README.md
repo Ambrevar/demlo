@@ -53,6 +53,17 @@ Install the files as follows:
 
 See `demlo -h` and the [home page](http://ambrevar.bitbucket.io/demlo/).
 
-## License
+## Breaking changes
 
-See LICENSE.
+### 3.8
+
+- Renamed `demlorc` to `config.lua`.  System configuration is loaded if
+  user configuration is not found.
+
+- Renamed configuration environment variable `DEMLORC` to `DEMLO_CONFIG`.
+
+- Renamed script `90-rmsrc` to `90-removesource`.
+
+- Replaced `-I` commandline argument with `-o` to write index files directly.
+
+- Some script functions were changed.
