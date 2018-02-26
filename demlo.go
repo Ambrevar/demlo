@@ -652,6 +652,7 @@ func main() {
 			log.Fatal(err)
 		}
 		options.Debug = false
+		log.Printf("Documentation of %v:", path)
 		log.SetPrefix("")
 		log.Print()
 		PrintScriptHelp(path)
@@ -707,6 +708,7 @@ func main() {
 	}
 	sort.StringSlice(extlist).Sort()
 	log.Printf("Accepted extensions: %v", strings.Join(extlist, " "))
+	// Cache scripts, actions and index.
 	cacheScripts(scriptFiles)
 	if options.Exist != "" {
 		path, err := actionFiles.Select(options.Exist)
