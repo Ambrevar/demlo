@@ -62,7 +62,9 @@ See `demlo -h` and the [home page](http://ambrevar.bitbucket.io/demlo/).
 
 - Renamed configuration environment variable `DEMLORC` to `DEMLO_CONFIG`.
 
-- Renamed script `90-rmsrc` to `90-removesource`.
+- Renamed script `90-rmsrc` to `90-remove_source`.
+
+- Namespaced =tag= scripts.
 
 - Replaced `-I` commandline argument with `-o` to write index files directly.
 
