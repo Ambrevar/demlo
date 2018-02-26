@@ -144,7 +144,6 @@ func (a *analyzer) Run(fr *FileRecord) error {
 				fmt.Fprintf(fd, "%s: %s,\n", buf1, buf2)
 				fd.Close()
 			}
-			fmt.Printf("%s: %s,\n", buf1, buf2)
 		}
 		if previewOptions.printIndex {
 			fmt.Printf("%s: %s,\n", buf1, buf2)
