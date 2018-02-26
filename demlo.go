@@ -92,11 +92,9 @@ var (
 	}{false, true}
 
 	cache = struct {
-		index       map[string][]outputInfo
-		scripts     []scriptBuffer
-		actions     map[string]string
-		scriptFiles map[string]string
-		actionFiles map[string]string
+		index   map[string][]outputInfo
+		scripts []scriptBuffer
+		actions map[string]string
 	}{}
 
 	// Options used in the config file and/or as CLI flags.
@@ -113,7 +111,6 @@ type Options struct {
 	Extensions  stringSetFlag
 	Getcover    bool
 	Gettags     bool
-	Help        string
 	Index       string
 	IndexOutput string
 	PrintIndex  bool
@@ -133,7 +130,6 @@ type dstCoverKey struct {
 // 'name' is stored for logging.
 type scriptBuffer struct {
 	name string
-	path string
 	buf  string
 }
 
@@ -148,49 +144,81 @@ func (s scriptBufferSlice) Less(i, j int) bool {
 func (s scriptBufferSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // Store the names of the scripts to load later on.
-type scriptAddFlag struct {
-	names *[]string
+type scriptSelection struct {
+	files *[]string
+	set   *map[string]bool
 }
 
+// Select the scripts in 's' matching 'name'.
+// If 'name' contains a folder separator, then this path is added
+// to 's' and selected.
+// Return the first match.
+func selectScript(name string, s scriptSelection) (path string, err error) {
+	if strings.ContainsRune(name, os.PathSeparator) {
+		*s.files = append(*s.files, name)
+		(*s.set)[name] = true
+	} else {
+		re, err := regexp.Compile(name)
+		if err != nil {
+			if strings.Contains(filepath.Base(name), name) {
+				(*s.set)[name] = true
+			} else {
+				err = fmt.Errorf("File matching %v not found", name)
+			}
+		} else {
+			err = fmt.Errorf("File matching %v not found", name)
+			for _, file := range *s.files {
+				if re.MatchString(StripExt(filepath.Base(file))) {
+					if err != nil {
+						name = file
+						err = nil
+					}
+					(*s.set)[file] = true
+				}
+			}
+		}
+	}
+	return name, err
+}
+
+type scriptAddFlag scriptSelection
+
 func (s *scriptAddFlag) String() string {
-	if s.names != nil {
-		return fmt.Sprintf("%q", *s.names)
+	if s.set != nil {
+		names := []string{}
+		for k := range *s.set {
+			names = append(names, filepath.Base(k))
+		}
+		sort.Strings(names)
+		return strings.Join(names, " ")
 	}
 	return ""
 }
 
-func (s *scriptAddFlag) Set(arg string) error {
-	*s.names = append(*s.names, arg)
-	return nil
+func (s *scriptAddFlag) Set(name string) error {
+	_, err := selectScript(name, scriptSelection(*s))
+	return err
 }
 
 // Remove the script names matching a regexp.
 // 'names' should point to the same slice as scriptAddFlag.
-type scriptRemoveFlag struct {
-	names *[]string
-}
+type scriptRemoveFlag scriptSelection
 
 func (s *scriptRemoveFlag) String() string {
 	return ""
 }
 
-// We only need to match the basename so that behaviour is clearer regarding script
-// finding.
+// We only match over the basename so that behaviour is not ambiguous regarding
+// script lookup.
 func (s *scriptRemoveFlag) Set(arg string) error {
 	re, err := regexp.Compile(arg)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < len(*s.names); {
-		if re.MatchString(StripExt(filepath.Base((*s.names)[i]))) {
-			if i < len(*s.names)-1 {
-				*s.names = append((*s.names)[:i], (*s.names)[i+1:]...)
-			} else {
-				*s.names = (*s.names)[:i]
-			}
-		} else {
-			i++
+	for _, file := range *s.files {
+		if re.MatchString(StripExt(filepath.Base(file))) {
+			delete(*s.set, file)
 		}
 	}
 
@@ -361,26 +389,7 @@ func newFileRecord(path string) *FileRecord {
 	return &fr
 }
 
-// findCode returns the path of the first code file found with name 'name'. If
-// 'name' contains a folder separator, then this path is loaded. Otherwise, the
-// file is looked up in the user folder, then the system folder.
-func findCode(name string, fileList map[string]string) (path string, st os.FileInfo, err error) {
-	if strings.ContainsRune(name, os.PathSeparator) {
-		if st, err := os.Stat(name); err == nil {
-			return name, st, nil
-		}
-		return "", nil, fmt.Errorf("not found: %v", name)
-	}
-
-	if path, ok := fileList[name]; ok {
-		if st, err := os.Stat(path); err == nil {
-			return path, st, nil
-		}
-	}
-	return "", nil, fmt.Errorf("not found: %v", name)
-}
-
-func printExtensions() {
+func printExtensions() { // TODO: Inline.
 	extlist := make([]string, 0, len(options.Extensions))
 	for k := range options.Extensions {
 		extlist = append(extlist, k)
@@ -404,7 +413,7 @@ func findInPath(pathlist, subpath string) string {
 }
 
 // Extensions must be in .lua.
-func listCode() {
+func listCode() (scriptFiles, actionFiles scriptSelection) { // TODO: Factor scripts & actions.
 	list := func(name, folder string, fileList map[string]string) {
 		f, err := os.Open(folder)
 		if err != nil {
@@ -444,10 +453,23 @@ func listCode() {
 	systemActionRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "actions"))
 	userActionRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, "actions"))
 
-	list("System scripts", systemScriptRoot, cache.scriptFiles)
-	list("User scripts", userScriptRoot, cache.scriptFiles)
-	list("System actions", systemActionRoot, cache.actionFiles)
-	list("User actions", userActionRoot, cache.actionFiles)
+	scriptMap := make(map[string]string)
+	actionMap := make(map[string]string)
+	list("System scripts", systemScriptRoot, scriptMap)
+	list("User scripts", userScriptRoot, scriptMap)
+	list("System actions", systemActionRoot, actionMap)
+	list("User actions", userActionRoot, actionMap)
+
+	scriptNames, actionNames := []string{}, []string{}
+	for _, v := range scriptMap {
+		scriptNames = append(scriptNames, v)
+	}
+	for _, v := range actionMap {
+		actionNames = append(actionNames, v)
+	}
+	scriptFiles = scriptSelection{&scriptNames, &map[string]bool{}}
+	actionFiles = scriptSelection{&actionNames, &map[string]bool{}}
+	return
 }
 
 func cacheAction(name, path string) {
@@ -455,7 +477,7 @@ func cacheAction(name, path string) {
 		return
 	}
 
-	path, st, err := findCode(path, cache.actionFiles)
+	st, err := os.Stat(path)
 	if err != nil {
 		warning.Print(err)
 		return
@@ -473,18 +495,19 @@ func cacheAction(name, path string) {
 	log.Printf("Load action %v: %v", name, path)
 }
 
-func cacheScripts() {
+func cacheScripts(scriptFiles scriptSelection) {
 	visited := map[string]bool{}
-	for _, s := range options.Scripts {
-		path, st, err := findCode(s, cache.scriptFiles)
-		if err != nil {
-			warning.Print(err)
-			continue
-		}
+	pathMap := map[string]string{}
+	for path := range *scriptFiles.set {
 		if visited[path] {
 			continue
 		}
 		visited[path] = true
+		st, err := os.Stat(path)
+		if err != nil {
+			warning.Print("code is not readable: ", err)
+			continue
+		}
 		if sz := st.Size(); sz > codeMaxsize {
 			warning.Printf("code size %v > %v bytes, skipping: %v", sz, codeMaxsize, path)
 			continue
@@ -494,12 +517,13 @@ func cacheScripts() {
 			warning.Print("code is not readable: ", err)
 			continue
 		}
-		cache.scripts = append(cache.scripts, scriptBuffer{name: StripExt(filepath.Base(path)), path: path, buf: string(buf)})
+		cache.scripts = append(cache.scripts, scriptBuffer{name: StripExt(filepath.Base(path)), buf: string(buf)})
+		pathMap[StripExt(filepath.Base(path))] = path
 	}
 
 	sort.Sort(scriptBufferSlice(cache.scripts))
 	for _, s := range cache.scripts {
-		log.Printf("Load script %v: %v", s.name, s.path)
+		log.Printf("Load script %v: %v", s.name, pathMap[s.name])
 	}
 
 	// Enclose the name of the prescript and postscript with '/' so that it cannot conflict with a user script.
@@ -512,22 +536,23 @@ func cacheScripts() {
 }
 
 func cacheIndex() {
-	if options.Index != "" {
-		st, err := os.Stat(options.Index)
+	if options.Index == "" {
+		return
+	}
+	st, err := os.Stat(options.Index)
+	if err != nil {
+		warning.Printf("index not found: [%v]", options.Index)
+	} else if st.Size() > indexMaxsize {
+		warning.Printf("index size > %v bytes, skipping: %v", indexMaxsize, options.Index)
+	} else if buf, err := ioutil.ReadFile(options.Index); err != nil {
+		warning.Print("index is not readable:", err)
+	} else {
+		// Enclose JSON list in a valid structure: index ends with a
+		// comma, hence the required dummy entry.
+		buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
+		err = json.Unmarshal(buf, &cache.index)
 		if err != nil {
-			warning.Printf("index not found: [%v]", options.Index)
-		} else if st.Size() > indexMaxsize {
-			warning.Printf("index size > %v bytes, skipping: %v", indexMaxsize, options.Index)
-		} else if buf, err := ioutil.ReadFile(options.Index); err != nil {
-			warning.Print("index is not readable:", err)
-		} else {
-			// Enclose JSON list in a valid structure: index ends with a
-			// comma, hence the required dummy entry.
-			buf = append(append([]byte{'{'}, buf...), []byte(`"": null}`)...)
-			err = json.Unmarshal(buf, &cache.index)
-			if err != nil {
-				warning.Printf("invalid index %v: %v", options.Index, err)
-			}
+			warning.Printf("invalid index %v: %v", options.Index, err)
 		}
 	}
 }
@@ -547,8 +572,6 @@ func init() {
 	}
 
 	cache.actions = make(map[string]string)
-	cache.actionFiles = make(map[string]string)
-	cache.scriptFiles = make(map[string]string)
 
 	config = os.Getenv("DEMLO_CONFIG")
 	if config == "" {
@@ -566,6 +589,15 @@ func main() {
 		log.Printf("Load config: %v", config)
 		LoadConfig(config, &options)
 	}
+
+	// We need to list the script files before we can display their help messages
+	// and regex-match names with '-s'.
+	scriptFiles, actionFiles := listCode()
+
+	for _, path := range options.Scripts {
+		selectScript(path, scriptFiles)
+	}
+
 	if options.Extensions == nil {
 		// Defaults: Init here so that unspecified config options get properly set.
 		options.Extensions = stringSetFlag{
@@ -598,13 +630,14 @@ func main() {
 	flag.BoolVar(&options.Color, "color", options.Color, "Color output.")
 	flag.IntVar(&options.Cores, "cores", options.Cores, "Run N processes in parallel. If 0, use all online cores.")
 	flag.BoolVar(&options.Debug, "debug", false, "Enable debug messages.")
-	flag.StringVar(&options.Exist, "exist", options.Exist, `Specify action to run when the destination exists.
-    	Warning: overwriting may result in undesired behaviour if destination is part of the input.`)
 	flag.Var(&options.Extensions, "ext", `Additional extensions to look for when a folder is browsed.
     	`)
+	flag.StringVar(&options.Exist, "exist", options.Exist, `Specify action to run when the destination exists.
+    	Warning: overwriting may result in undesired behaviour if destination is part of the input.`)
 	flag.BoolVar(&options.Getcover, "c", options.Getcover, "Fetch cover from the Internet."+onlineMessage)
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet."+onlineMessage)
-	flag.StringVar(&options.Help, "h", options.Help, `Show help for the specified script.`)
+	var hFlag string = ""
+	flag.StringVar(&hFlag, "h", hFlag, `Show help for the specified script.`)
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
 	flag.StringVar(&options.IndexOutput, "o", options.IndexOutput, `Write index to specified output file.  Append to file if it exists.`)
@@ -612,13 +645,16 @@ func main() {
 	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
 
-	sFlag := scriptAddFlag{&options.Scripts}
-	flag.Var(&sFlag, "s", `Specify scripts to run in lexicographical order. This option can be specified several times.
+	sFlag := scriptAddFlag(scriptFiles)
+	flag.Var(&sFlag, "s", `Add scripts to the chain. This option can be specified several times.
+      Scripts are run in lexicographical order.
+      If provided string contains a path separator, assume it is a path to a string.
+      Otherwise, add all user and system scripts matching the regex.
     	`)
 
-	rFlag := scriptRemoveFlag{&options.Scripts}
-	flag.Var(&rFlag, "r", `Remove scripts where the regexp matches a part of the basename.
-    	An empty regexp removes all scripts.`)
+	rFlag := scriptRemoveFlag(scriptFiles)
+	flag.Var(&rFlag, "r", `Remove scripts where the regex matches a part of the basename.
+    	The empty string '' removes all scripts.`)
 
 	var flagVersion = flag.Bool("v", false, "Print version and exit.")
 
@@ -629,16 +665,16 @@ func main() {
 		return
 	}
 
-	// We need to list the script files before we can display their help messages.
-	listCode()
-
-	if options.Help != "" {
-		options.Debug = false
-		log.SetPrefix("")
-		path, _, err := findCode(options.Help, cache.scriptFiles)
+	if hFlag != "" {
+		for k := range *scriptFiles.set {
+			(*scriptFiles.set)[k] = false
+		}
+		path, err := selectScript(hFlag, scriptFiles)
 		if err != nil {
 			log.Fatal(err)
 		}
+		options.Debug = false
+		log.SetPrefix("")
 		log.Print()
 		PrintScriptHelp(path)
 		return
@@ -687,8 +723,14 @@ func main() {
 	}
 
 	printExtensions()
-	cacheScripts()
-	cacheAction(actionExist, options.Exist)
+	cacheScripts(scriptFiles)
+	if options.Exist != "" {
+		path, err := selectScript(options.Exist, actionFiles)
+		if err != nil {
+			warning.Print(err)
+		}
+		cacheAction(actionExist, path)
+	}
 	cacheIndex()
 
 	// Limit number of cores to online cores.

@@ -62,6 +62,7 @@ func MakeSandbox(logPrint func(v ...interface{})) *lua.State {
 	// together with the sandbox.
 	// The closure allows access to the external logger.
 	luaDebug := func(L *lua.State) int { return 0 }
+	luaHelp := func(L *lua.State) int { return 0 }
 	if logPrint != nil {
 		luaDebug = func(L *lua.State) int {
 			var arglist []interface{}
@@ -74,13 +75,10 @@ func MakeSandbox(logPrint func(v ...interface{})) *lua.State {
 			logPrint(arglist...)
 			return 0
 		}
-	}
-
-	// Help function.
-	// When displaying help, we don't want debug.
-	luaHelp := func(L *lua.State) int { return 0 }
-	if logPrint != nil && options.Help != "" {
-		luaHelp, luaDebug = luaDebug, luaHelp
+		// If debug is off but logPrint!=nil, it means we want to display help.
+		if !options.Debug {
+			luaHelp, luaDebug = luaDebug, luaHelp
+		}
 	}
 
 	sandboxRegister(L, "help", luaHelp)
