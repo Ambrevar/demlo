@@ -404,7 +404,8 @@ func findInPath(pathlist, subpath string) string {
 }
 
 // Extensions must be in .lua.
-func listCode() (scriptFiles, actionFiles scriptSelection) { // TODO: Factor scripts & actions.
+// 'name' is for logging only, it should be "scripts" or "actions".
+func listCode(name string) (sel scriptSelection) {
 	list := func(name, folder string, fileList map[string]string) {
 		f, err := os.Open(folder)
 		if err != nil {
@@ -441,26 +442,16 @@ func listCode() (scriptFiles, actionFiles scriptSelection) { // TODO: Factor scr
 
 	systemScriptRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
 	userScriptRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
-	systemActionRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "actions"))
-	userActionRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, "actions"))
 
 	scriptMap := make(map[string]string)
-	actionMap := make(map[string]string)
-	list("System scripts", systemScriptRoot, scriptMap)
-	list("User scripts", userScriptRoot, scriptMap)
-	list("System actions", systemActionRoot, actionMap)
-	list("User actions", userActionRoot, actionMap)
+	list("System "+name, systemScriptRoot, scriptMap)
+	list("User "+name, userScriptRoot, scriptMap)
 
-	scriptNames, actionNames := []string{}, []string{}
+	scriptNames := []string{}
 	for _, v := range scriptMap {
 		scriptNames = append(scriptNames, v)
 	}
-	for _, v := range actionMap {
-		actionNames = append(actionNames, v)
-	}
-	scriptFiles = scriptSelection{&scriptNames, &map[string]bool{}}
-	actionFiles = scriptSelection{&actionNames, &map[string]bool{}}
-	return
+	return scriptSelection{&scriptNames, &map[string]bool{}}
 }
 
 func cacheAction(name, path string) {
@@ -583,7 +574,8 @@ func main() {
 
 	// We need to list the script files before we can display their help messages
 	// and regex-match names with '-s'.
-	scriptFiles, actionFiles := listCode()
+	scriptFiles := listCode("scripts")
+	actionFiles := listCode("actions")
 
 	for _, path := range options.Scripts {
 		selectScript(path, scriptFiles)
