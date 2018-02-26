@@ -144,36 +144,32 @@ func (s scriptBufferSlice) Less(i, j int) bool {
 func (s scriptBufferSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // Store the names of the scripts to load later on.
-type scriptSelection struct {
-	files *[]string
-	set   *map[string]bool
-}
+type scriptSelection map[string]bool
 
 // Select the scripts in 's' matching 'name'.
 // If 'name' contains a folder separator, then this path is added
 // to 's' and selected.
 // Return the first match.
-func selectScript(name string, s scriptSelection) (path string, err error) {
+func (s scriptSelection) Select(name string) (path string, err error) {
 	if strings.ContainsRune(name, os.PathSeparator) {
-		*s.files = append(*s.files, name)
-		(*s.set)[name] = true
+		s[name] = true
 	} else {
 		re, err := regexp.Compile(name)
 		if err != nil {
 			if strings.Contains(filepath.Base(name), name) {
-				(*s.set)[name] = true
+				s[name] = true
 			} else {
 				err = fmt.Errorf("File matching %v not found", name)
 			}
 		} else {
 			err = fmt.Errorf("File matching %v not found", name)
-			for _, file := range *s.files {
+			for file := range s {
 				if re.MatchString(StripExt(filepath.Base(file))) {
 					if err != nil {
 						name = file
 						err = nil
 					}
-					(*s.set)[file] = true
+					s[file] = true
 				}
 			}
 		}
@@ -181,22 +177,19 @@ func selectScript(name string, s scriptSelection) (path string, err error) {
 	return name, err
 }
 
-type scriptAddFlag scriptSelection
-
-func (s *scriptAddFlag) String() string {
-	if s.set != nil {
-		names := []string{}
-		for k := range *s.set {
-			names = append(names, filepath.Base(k))
+func (s scriptSelection) String() string {
+	names := []string{}
+	for script, selected := range s {
+		if selected {
+			names = append(names, filepath.Base(script))
 		}
-		sort.Strings(names)
-		return strings.Join(names, " ")
 	}
-	return ""
+	sort.Strings(names)
+	return strings.Join(names, " ")
 }
 
-func (s *scriptAddFlag) Set(name string) error {
-	_, err := selectScript(name, scriptSelection(*s))
+func (s scriptSelection) Set(name string) error {
+	_, err := s.Select(name)
 	return err
 }
 
@@ -204,28 +197,28 @@ func (s *scriptAddFlag) Set(name string) error {
 // 'names' should point to the same slice as scriptAddFlag.
 type scriptRemoveFlag scriptSelection
 
-func (s *scriptRemoveFlag) String() string {
+func (s scriptRemoveFlag) String() string {
 	return ""
 }
 
 // We only match over the basename so that behaviour is not ambiguous regarding
 // script lookup.
-func (s *scriptRemoveFlag) Set(arg string) error {
+func (s scriptRemoveFlag) Set(arg string) error {
 	re, err := regexp.Compile(arg)
 	if err != nil {
 		return err
 	}
 
-	for _, file := range *s.files {
+	for file := range s {
 		if re.MatchString(StripExt(filepath.Base(file))) {
-			delete(*s.set, file)
+			s[file] = false
 		}
 	}
 
 	return nil
 }
 
-type stringSetFlag map[string]bool
+type stringSetFlag map[string]bool // TODO: Factor this with the other flags?  Or rename?
 
 func (s *stringSetFlag) String() string {
 	keylist := []string{}
@@ -440,18 +433,18 @@ func listCode(name string) (sel scriptSelection) {
 		}
 	}
 
-	systemScriptRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, "scripts"))
-	userScriptRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, "scripts"))
+	systemScriptRoot := findInPath(XDG_DATA_DIRS, filepath.Join(application, name))
+	userScriptRoot := findInPath(XDG_CONFIG_HOME, filepath.Join(application, name))
 
 	scriptMap := make(map[string]string)
 	list("System "+name, systemScriptRoot, scriptMap)
 	list("User "+name, userScriptRoot, scriptMap)
 
-	scriptNames := []string{}
+	scriptNames := map[string]bool{}
 	for _, v := range scriptMap {
-		scriptNames = append(scriptNames, v)
+		scriptNames[v] = false
 	}
-	return scriptSelection{&scriptNames, &map[string]bool{}}
+	return scriptNames
 }
 
 func cacheAction(name, path string) {
@@ -477,11 +470,11 @@ func cacheAction(name, path string) {
 	log.Printf("Load action %v: %v", name, path)
 }
 
-func cacheScripts(scriptFiles scriptSelection) {
+func cacheScripts(scriptFiles map[string]bool) {
 	visited := map[string]bool{}
 	pathMap := map[string]string{}
-	for path := range *scriptFiles.set {
-		if visited[path] {
+	for path, selected := range scriptFiles {
+		if !selected || visited[path] {
 			continue
 		}
 		visited[path] = true
@@ -578,7 +571,10 @@ func main() {
 	actionFiles := listCode("actions")
 
 	for _, path := range options.Scripts {
-		selectScript(path, scriptFiles)
+		_, err := scriptFiles.Select(path)
+		if err != nil {
+			warning.Print(err)
+		}
 	}
 
 	if options.Extensions == nil {
@@ -628,11 +624,10 @@ func main() {
 	flag.StringVar(&options.Prescript, "pre", options.Prescript, "Run Lua code before the other scripts.")
 	flag.BoolVar(&options.Process, "p", options.Process, "Apply changes: set tags and format, move/copy result to destination file.")
 
-	sFlag := scriptAddFlag(scriptFiles)
-	flag.Var(&sFlag, "s", `Add scripts to the chain. This option can be specified several times.
-      Scripts are run in lexicographical order.
-      If provided string contains a path separator, assume it is a path to a string.
-      Otherwise, add all user and system scripts matching the regex.
+	flag.Var(&scriptFiles, "s", `Add scripts to the chain. This option can be specified several times.
+    	Scripts are run in lexicographical order.
+    	If provided string contains a path separator, assume it is a path to a string.
+    	Otherwise, add all user and system scripts matching the regex.
     	`)
 
 	rFlag := scriptRemoveFlag(scriptFiles)
@@ -649,10 +644,10 @@ func main() {
 	}
 
 	if hFlag != "" {
-		for k := range *scriptFiles.set {
-			(*scriptFiles.set)[k] = false
+		for k := range scriptFiles {
+			scriptFiles[k] = false
 		}
-		path, err := selectScript(hFlag, scriptFiles)
+		path, err := scriptFiles.Select(hFlag)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -714,7 +709,7 @@ func main() {
 	log.Printf("Accepted extensions: %v", strings.Join(extlist, " "))
 	cacheScripts(scriptFiles)
 	if options.Exist != "" {
-		path, err := selectScript(options.Exist, actionFiles)
+		path, err := actionFiles.Select(options.Exist)
 		if err != nil {
 			warning.Print(err)
 		}
