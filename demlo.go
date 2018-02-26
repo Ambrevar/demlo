@@ -389,15 +389,6 @@ func newFileRecord(path string) *FileRecord {
 	return &fr
 }
 
-func printExtensions() { // TODO: Inline.
-	extlist := make([]string, 0, len(options.Extensions))
-	for k := range options.Extensions {
-		extlist = append(extlist, k)
-	}
-	sort.StringSlice(extlist).Sort()
-	log.Printf("Accepted extensions: %v", strings.Join(extlist, " "))
-}
-
 func findInPath(pathlist, subpath string) string {
 	for _, dir := range filepath.SplitList(pathlist) {
 		if dir == "" {
@@ -722,7 +713,13 @@ func main() {
 		warning.SetPrefix(ansi.Color(warning.Prefix(), "yellow+b"))
 	}
 
-	printExtensions()
+	// Print registered extensions.
+	extlist := make([]string, 0, len(options.Extensions))
+	for k := range options.Extensions {
+		extlist = append(extlist, k)
+	}
+	sort.StringSlice(extlist).Sort()
+	log.Printf("Accepted extensions: %v", strings.Join(extlist, " "))
 	cacheScripts(scriptFiles)
 	if options.Exist != "" {
 		path, err := selectScript(options.Exist, actionFiles)
