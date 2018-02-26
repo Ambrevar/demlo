@@ -3,10 +3,9 @@
 local osseparator = ossep or '/'
 -- Relative paths are OK, but '~' does not get expanded.
 local library = lib or os.getenv('HOME')  .. osseparator .. 'music'
--- Replace OS separators in folder names by ' - ' in the sane() function.
-local fsfilter = fsf or [[\s*]] .. osseparator .. [[\s*]]
+local pathsubstitute = pathsub or {}
 
-help([[
+help([=[
 Set the output path according to tags.
 
 Note that 'track' refers to the track number, not the title.
@@ -15,21 +14,31 @@ GLOBAL OPTIONS
 
 - ossep: string (default: '/')
   OS path separator.
+  Separators are replaced by ' - ' in folder names.
 
 - lib: string (default: ']] .. library .. [[')
   Path to the music library.
 
-- fsf: regular expression (default: ']] .. fsfilter .. [[')
-  Some filesystems don't accept all characters and those need be replaced.
-  Every element of the output path which matches this regular expression will be
-  replaced by " - ".
+- pathsub: array of {[[regular expression]], [[replacement string]]}
+  Replace all filename elements matching the regex with the replacement string.
+  pathsub is not an associative array since order must be guaranteed.
+
+EXAMPLES
+
+- pathsub = {{'["*?:/\|<>!;+]', ""}}
+
+  Some filesystems don't accept some special characters, so we remove them.
+  It can be useful to sync music on external devices.  For intance, store the
+  above in "59-path-sync" and run:
+
+    $ demlo -r '' -pre 'lib="/media/device"' -s path AUDIO-FILES...
 
 RULES
 
 We make sure no unnecessary subfolders are created.
 Extension is set from format.
 We pad zeros (2 digits) in track number for file browsers without numeric sorting capabilities.
-]])
+]=])
 
 local function empty(s)
 	if type(s) ~= 'string' or s == '' then
@@ -40,7 +49,15 @@ local function empty(s)
 end
 
 local function sane(s)
-	return s:gsub(fsfilter, ' - ')
+	for _, j in ipairs(pathsubstitute) do
+		local r = s:gsub(j[1], j[2])
+		if r ~= s then
+			debug("'" .. s .. "':gsub('" .. j[1] .."', '" .. j[2] .. "')='" .. r .. "'")
+		end
+		s = r
+	end
+	s = s:gsub([[\s*]] .. osseparator .. [[\s*]], ' - ')
+	return s
 end
 
 -- Append arguments to path if they or not empty.
