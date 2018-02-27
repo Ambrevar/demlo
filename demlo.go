@@ -47,6 +47,8 @@ and encoding.
 Folders are processed recursively. Only files with known extensions are processed.
 New extensions can be specified from commandline options.
 
+Commandline options come before file arguments.
+
 All flags that do not require an argument are booleans. Without argument, they
 take the true value. To negate them, use the form '-flag=false'.
 
@@ -58,9 +60,7 @@ Unless '-p' is used, no action is taken, only the preview is shown.
 
 Tag field names are printed as they are stored in the input and output files.
 
-See ` + URL + ` for more details.
-
-Commandline options come before file arguments.
+See '-help' for more details.
 `
 
 const (
