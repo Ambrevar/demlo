@@ -9,14 +9,15 @@ GLOBAL VARIABLES
 
 EXAMPLES
 
-The following substitution rules replace simple quotes by double quotes.
+	sub = {
+	       {[[(\PL+)']], '$1"'},
+	       {[['(\PL+)]], '"$1'},
+	       {"'$", '"'}
+	      }
+
+The previous substitution rules replace simple quotes by double quotes.
 This can be undesirable in some contexts, such as "Rock 'n' Roll".
 
-  sub = {
-         {[[(\PL+)']], '$1"'},
-         {[['(\PL+)]], '"$1'},
-         {"'$", '"'}
-        }
 ]=])
 
 local subst = sub or {

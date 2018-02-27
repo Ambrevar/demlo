@@ -1,8 +1,11 @@
 -- demlo script
-help([[
+help([=[
 Get disc numberfrom the single digit of the parent folder.
 If there is none, remove disc number.
-]])
+
+Set track number to first number in input file name:
+	demlo -pre 'o.track=input.path:match([[.*\/\D*(\d*)\D*]])' audio.file
+]=])
 
 local parent = input.path:match("(.*)/")
 local dirname = parent and parent:match(".*/(.*)")

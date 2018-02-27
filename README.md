@@ -6,11 +6,61 @@ copy covers while ignoring duplicates or those below a quality threshold, and
 much more. It makes it possible to manage your libraries uniformly and
 dynamically. You can write your own rules to fit your needs best.
 
-Demlo aims to be as lightweight and portable as possible. Its only big
-dependency is the transcoder FFmpeg. The scripts are written in Lua for
-portability and speed while allowing virtually unlimited extensibility.
+Demlo can address any of these recurring music library issues (and much more):
+
+- Fix the lack of folder structure.
+- Normalize tags, fix their case, chose which tags to keep and which to discard.
+- Handle lossy and lossless audio differently.
+- Handle mp3 id3tags hell…
+- Handle multiple covers, whether embedded and/or external, resize covers,
+discard bad quality ones.
+
+
+## Preview
+
+Here follows a sample output showing the "before-after" differences.
+
+	$ demlo fantasie_impromptu.flac
+	:: Load config: /home/johndoe/.config/demlo/config.lua
+	:: Load script 10-tag-normalize: /usr/share/demlo/scripts/10-tag-normalize.lua
+	:: Load script 20-tag-replace: /usr/share/demlo/scripts/20-tag-replace.lua
+	:: Load script 30-tag-case: /usr/share/demlo/scripts/30-tag-case.lua
+	:: Load script 40-tag-punctuation: /usr/share/demlo/scripts/40-tag-punctuation.lua
+	:: Load script 50-encoding: /usr/share/demlo/scripts/50-encoding.lua
+	:: Load script 51-encoding-flac2ogg: /home/johndoe/.config/demlo/scripts/51-encoding-flac2ogg.lua
+	:: Load script 60-path: /usr/share/demlo/scripts/60-path.lua
+	:: Load script 70-cover: /usr/share/demlo/scripts/70-cover.lua
+	==> fantasie_impromptu.flac
+
+	                                               === FILE         ===
+	         [/home/johndoe/fantasie_impromptu.flac] | path         | [/home/johndoe/music/Chopin/The Best Ever Piano ]
+	                                                 |              | [Classics (John Doe, 2014)/Fantasie-Impromptu in]
+	                                                 |              | [ C Sharp Minor, Op. 66.ogg]
+	                                          [flac] | format       | [ogg]
+	                                [bitrate=320000] | parameters   | [[-c:a libvorbis -q:a 10]]
+	                                               === TAGS         ===
+	            [john doe's classical collection II] | album        | [John Doe's Classical Collection II]
+	                                              [] | album_artist | [Chopin]
+	                                              [] | artist       | [Chopin]
+	                                        [chopin] | composer     | []
+	                                    [02/13/2014] | date         | [2014]
+	                                      [Classics] | genre        | [Classical]
+	                                     [John_Doe ] | performer    | [John Doe]
+	   [Fantasie-Impromptu in c sharp MInor , Op.66] | title        | [Fantasie-Impromptu in C Sharp Minor, Op. 66]
+	                                               === COVERS       ===
+	                  ['cover.jpg' [500x500] <jpeg>] | external     | [/home/johndoe/music/Chopin/The Best Ever Piano ]
+	                                                 |              | [Classics (John Doe, 2014)/Cover.jpg]
+
+
 
 ## Installation
+
+### Packages
+
+- [Arch Linux package (AUR)](https://aur.archlinux.org/packages/demlo-git/)
+
+
+### Manual
 
 Compile-time dependencies:
 
@@ -51,7 +101,8 @@ Install the files as follows:
 
 ## Usage
 
-See `demlo -h` and the [home page](http://ambrevar.bitbucket.io/demlo/).
+See `demlo`, `demlo -help` and `demlo -h <script-name>` for contextual help from
+the commandline.
 
 ## Breaking changes
 
@@ -64,7 +115,7 @@ See `demlo -h` and the [home page](http://ambrevar.bitbucket.io/demlo/).
 
 - Renamed script `90-rmsrc` to `90-remove_source`.
 
-- Namespaced =tag= scripts.
+- Namespaced "tag" scripts.
 
 - Replaced `-I` commandline argument with `-o` to write index files directly.
 

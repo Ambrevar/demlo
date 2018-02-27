@@ -12,6 +12,13 @@ RULES
 - Note that the term "classical" refers to both western art music from 1000 AD
   to present time, and the era from 1750 to 1820. In this script the genre
   "Classical" refers to the 1750-1820 era.
+
+EXAMPLES
+
+	demlo -pre 'o.artist=o.composer; o.title=o.artist .. " - " .. o.title' audio.file
+
+Set 'artist' to the value of 'composer', and 'title' to be preceded by the new
+value of 'artist', then apply the default script.  Mind the double quotes.
 ]])
 
 

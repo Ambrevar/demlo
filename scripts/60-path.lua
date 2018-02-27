@@ -5,7 +5,7 @@ local osseparator = ossep or '/'
 local library = lib or os.getenv('HOME')  .. osseparator .. 'music'
 local pathsubstitute = pathsub or {}
 
-help([=[
+help([==[
 Set the output path according to tags.
 
 Note that 'track' refers to the track number, not the title.
@@ -25,20 +25,22 @@ GLOBAL OPTIONS
 
 EXAMPLES
 
-- pathsub = {{'["*?:/\|<>!;+]', ""}}
+	demlo -pre 'pathsub={{[=[["*?:/\|<>]]=], ""}}' AUDIO-FILES...
 
-  Some filesystems don't accept some special characters, so we remove them.
-  It can be useful to sync music on external devices.  For intance, store the
-  above in "59-path-sync" and run:
+Some filesystems don't accept some special characters, so we remove them.
+It can be useful to sync music on external devices.  For intance, store the
+above in "59-path-sync" and run the following example.
 
-    $ demlo -r '' -pre 'lib="/media/device"' -s path AUDIO-FILES...
+	demlo -r '' -pre 'lib="/media/device"' -s path AUDIO-FILES...
+
+Run 59-path-sync and 60-path, music is copied over to the /media/device library.
 
 RULES
 
 We make sure no unnecessary subfolders are created.
 Extension is set from format.
 We pad zeros (2 digits) in track number for file browsers without numeric sorting capabilities.
-]=])
+]==])
 
 local function empty(s)
 	if type(s) ~= 'string' or s == '' then

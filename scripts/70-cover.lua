@@ -2,17 +2,87 @@
 help([[
 Process album covers / artwork.
 
-Remove embedded covers.
-Convert to jpeg.
-Skip covers beyond quality threshold.
-Skip duplicates.
+- Remove embedded covers.
+- Convert to JPEG.
+- Skip covers beyond quality threshold.
+- Skip duplicates.
 
-Input format names are different from the output formats which use the Go
-nomenclature. Default output formats are 'gif', 'jpeg' and 'png'.
+VARIABLES
+
+Demlo can manage embedded covers as well as external covers.
 
 Demlo skips covers with no output path. It copies covers with no codec or no
 format. It transcodes covers when the codec or the format are different from the
 default.
+
+External covers are queried from files matching known extensions in the file's
+folder.
+Embedded covers are queried from static video streams in the file.
+Covers are accessed from
+
+	input.embeddedcovers = {
+		[#cover index] = inputcover -- See below for "inputcover".
+	}
+	input.externalcovers = {
+		['cover basename'] = inputcover
+	}
+	input.onlinecover = inputcover
+
+The embedded covers are indexed numerically by order of appearance in the
+streams. The first cover will be at index 1 and so on. This is not necessarily
+the index of the stream.
+
+'inputcover' has the following structure:
+
+	{
+		format = '', -- (Can be any of 'gif', 'jpeg', 'png'.)
+		width = 0,
+		height = 0,
+		checksum = '00000000000000000000000000000000', -- md5 sum.
+	}
+
+'format' is the image format. FFmpeg makes a distinction between format and
+codec, but it is not useful for covers.  For images, input format names are
+different from the output formats which use the Go nomenclature. Default output
+formats are 'gif', 'jpeg' and 'png'.  The name of the format is specified by
+Demlo, not by FFmpeg. Hence the 'jpeg' name, instead of 'mjpeg' as FFmpeg puts
+it.
+
+'width' and 'height' hold the size in pixels.
+
+'checksum' can be used to identify files uniquely. For performance reasons, only
+a partial checksum is performed. This variable is typically used for skipping
+duplicates.
+
+Cover transformations are specified in
+
+	output.embeddedcovers = {
+		[<cover index>] = outputcover
+	}
+	output.externalcovers = {
+		['cover basename'] = outputcover
+	}
+	output.onlinecover = outputcover
+
+'outputcover' has the following structure:
+
+	{
+		path = 'full/path/with.ext',
+		format = '', -- e.g. 'mjpeg', 'png'.
+		parameters = {},
+	}
+
+The format is specified by FFmpeg this time. See the comments on 'format' for
+'inputcover'.
+
+'parameters' is used in the same fashion as 'output.parameters'.
+
+EXAMPLES
+
+	demlo -c -r '' -s cover -s remove_source album/track
+
+Only download the cover for the album corresponding to the track. We use
+'removesource' to avoid duplicating the audio file.
 ]])
 
 -- Even though FFmpeg makes a distinction between format (container) and codec,
@@ -58,10 +128,10 @@ local function to_jpeg(input_cover, stream, file)
 		output_cover.parameters[#output_cover.parameters+1] = math.floor(input_cover.width/max_ratio + 0.5) .. 'x' .. math.floor(input_cover.height/max_ratio + 0.5)
 
 	elseif input_cover.format == 'jpeg' then
-		-- Already in jpeg, do not convert.
+		-- Already in JPEG, do not convert.
 		output_cover.parameters = nil
 	else
-		-- Convert to jpeg.
+		-- Convert to JPEG.
 		output_cover.parameters[#output_cover.parameters+1] = '-c:'.. stream
 		output_cover.parameters[#output_cover.parameters+1] = 'mjpeg'
 	end

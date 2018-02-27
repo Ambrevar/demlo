@@ -14,7 +14,13 @@ GLOBAL VARIABLES
 
 EXAMPLES
 
-  const = {'FooBar', 'baz'}
+  demlo -pre 'const={"FooBar", "baz"}' audio.file
+
+The strings "foobar" and "baz" will be cased "FooBar" and "baz" respectively.
+
+	demlo -pre 'const={"AC-DC"}; scase=true' -s case audio.file
+
+Set case to sentence case while casing AC-DC correctly.
 ]])
 
 local sentencecase = scase or false

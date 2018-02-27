@@ -616,6 +616,8 @@ func main() {
 	flag.BoolVar(&options.Gettags, "t", options.Gettags, "Fetch tags from the Internet."+onlineMessage)
 	var hFlag string = ""
 	flag.StringVar(&hFlag, "h", hFlag, `Show help for the specified script.`)
+	var printHelp bool
+	flag.BoolVar(&printHelp, "help", false, "Show documentation.")
 	flag.StringVar(&options.Index, "i", options.Index, `Use index file to set input and output metadata.
     	The index can be built using the non-formatted preview output.`)
 	flag.StringVar(&options.IndexOutput, "o", options.IndexOutput, `Write index to specified output file.  Append to file if it exists.`)
@@ -636,6 +638,11 @@ func main() {
 	var flagVersion = flag.Bool("v", false, "Print version and exit.")
 
 	flag.Parse()
+
+	if printHelp {
+		fmt.Println(help)
+		return
+	}
 
 	if *flagVersion {
 		fmt.Println(application, version, copyright)

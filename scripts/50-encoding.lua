@@ -6,6 +6,20 @@ Demlo uses FFmpeg for transcoding.
 We set both the codec parameters and the container ("format" in FFmpeg speaking).
 The input container is kept _only if supported_.
 
+'output.parameters' contains commandline flags passed to FFmpeg. They are meant
+to set the stream codec, the bitrate, etc.
+
+If 'output.parameters' is {'-c:a', 'copy'} and the format is identical, then
+taglib will be used instead of FFmpeg. Use this rule from a (post)script to
+disable encoding by setting the same format and the copy parameters. This speeds
+up the process.
+
+To easily switch between formats from commandline, create one script per format
+e.g. 52-ogg.lua and 51-flac.lua. Then
+
+	demlo -s flac lossless-audio.file
+	demlo -s ogg lossy-audio.file
+
 GLOBAL OPTIONS
 
 - bps: integer
@@ -16,8 +30,13 @@ GLOBAL OPTIONS
 
 EXAMPLES
 
-  bps=192000
-  -- Set the bitrate to 192k.
+	demlo -pre 'bps=192000' audio.file
+
+Set the bitrate to 192k.
+
+	demlo -post 'output.format=input.format; output.parameters={"-c:a","copy"}' audio.file
+
+Do the usual but do not re-encode.
 ]])
 
 -- TODO: Check which format supports video streams. (E.g. for embedded covers.)
