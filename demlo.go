@@ -149,32 +149,31 @@ type scriptSelection map[string]bool
 // Select the scripts in 's' matching 'name'.
 // If 'name' contains a folder separator, then this path is added
 // to 's' and selected.
-// Return the first match.
-func (s scriptSelection) Select(name string) (path string, err error) {
+// Return the matching paths.
+func (s scriptSelection) Select(name string) (paths []string, err error) {
 	if strings.ContainsRune(name, os.PathSeparator) {
 		s[name] = true
+		paths = append(paths, name)
 	} else {
 		re, err := regexp.Compile(name)
 		if err != nil {
 			if strings.Contains(filepath.Base(name), name) {
 				s[name] = true
 			} else {
-				err = fmt.Errorf("File matching %v not found", name)
+				err = fmt.Errorf("Could not find any file matching '%v'", name)
 			}
 		} else {
-			err = fmt.Errorf("File matching %v not found", name)
+			err = fmt.Errorf("Could not find any file matching '%v'", name)
 			for file := range s {
 				if re.MatchString(StripExt(filepath.Base(file))) {
-					if err != nil {
-						name = file
-						err = nil
-					}
+					paths = append(paths, file)
+					err = nil
 					s[file] = true
 				}
 			}
 		}
 	}
-	return name, err
+	return paths, err
 }
 
 func (s scriptSelection) String() string {
@@ -467,7 +466,7 @@ func cacheAction(name, path string) {
 		return
 	}
 	cache.actions[name] = string(buf)
-	log.Printf("Load action %v: %v", name, path)
+	log.Printf("Load action %#v: %v", name, path)
 }
 
 func cacheScripts(scriptFiles map[string]bool) {
@@ -647,15 +646,19 @@ func main() {
 		for k := range scriptFiles {
 			scriptFiles[k] = false
 		}
-		path, err := scriptFiles.Select(hFlag)
+		paths, err := scriptFiles.Select(hFlag)
 		if err != nil {
 			log.Fatal(err)
 		}
+		if len(paths) != 1 {
+			log.Fatalf("Pattern %#v matches too many scripts: %v", hFlag, paths)
+			return
+		}
 		options.Debug = false
-		log.Printf("Documentation of %v:", path)
+		log.Printf("Documentation of %v:", paths[0])
 		log.SetPrefix("")
 		log.Print()
-		PrintScriptHelp(path)
+		PrintScriptHelp(paths[0])
 		return
 	}
 
@@ -711,11 +714,15 @@ func main() {
 	// Cache scripts, actions and index.
 	cacheScripts(scriptFiles)
 	if options.Exist != "" {
-		path, err := actionFiles.Select(options.Exist)
+		paths, err := actionFiles.Select(options.Exist)
 		if err != nil {
 			warning.Print(err)
 		}
-		cacheAction(actionExist, path)
+		if len(paths) != 1 {
+			warning.Printf("Pattern %#v matches too many %#v actions: %v", options.Exist, actionExist, paths)
+		} else {
+			cacheAction(actionExist, paths[0])
+		}
 	}
 	cacheIndex()
 
