@@ -12,8 +12,8 @@ import (
 
 const (
 	sampleCuesheet    = "cuesheet/testdata/sample.cue"
-	scriptCase        = "scripts/30-case.lua"
-	scriptPunctuation = "scripts/40-punctuation.lua"
+	scriptCase        = "scripts/30-tag-case.lua"
+	scriptPunctuation = "scripts/40-tag-punctuation.lua"
 )
 
 func TestFixPunctuation(t *testing.T) {
