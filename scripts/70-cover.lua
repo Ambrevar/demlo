@@ -1,4 +1,7 @@
 -- demlo script
+
+local osseparator = ossep or '/'
+
 help([[
 Process album covers / artwork.
 
@@ -77,6 +80,12 @@ The format is specified by FFmpeg this time. See the comments on 'format' for
 
 'parameters' is used in the same fashion as 'output.parameters'.
 
+GLOBAL OPTIONS
+
+- ossep: string (default: ']] .. osseparator .. [[')
+  OS path separator.
+  Separators are replaced by ' - ' in folder names.
+
 EXAMPLES
 
 	demlo -c -r '' -s cover -s remove_source album/track
@@ -96,6 +105,7 @@ local dirname = output.path:match ('^(.*)/') or '.'
 local basename = 'Cover'
 if output.tags.album then
 	basename = output.tags.album .. ' - Cover'
+	basename = basename:gsub([[\s*]] .. osseparator .. [[\s*]], ' - ')
 end
 
 local checksum_list = {}

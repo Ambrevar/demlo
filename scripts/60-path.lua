@@ -12,7 +12,7 @@ Note that 'track' refers to the track number, not the title.
 
 GLOBAL OPTIONS
 
-- ossep: string (default: '/')
+- ossep: string (default: ']] .. osseparator .. [[')
   OS path separator.
   Separators are replaced by ' - ' in folder names.
 
