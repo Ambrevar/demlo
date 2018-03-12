@@ -470,6 +470,11 @@ func makeCoverDst(fr *FileRecord, dst string, inputPath string, checksum string)
 			return "", err
 		}
 
+		err = os.MkdirAll(filepath.Dir(dst), 0777)
+		if err != nil {
+			return "", err
+		}
+
 		fd, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL, st.Mode())
 		if err != nil {
 			// Either the parent folder is not writable, or a race condition happened:
