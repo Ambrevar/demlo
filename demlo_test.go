@@ -76,6 +76,7 @@ func TestTitleCase(t *testing.T) {
 			`"A Double Quoted Sentence" and 'One Single Quoted'.`:      `"a double quoted sentence" and 'one single quoted'.`,
 			`Another "Double Quoted Sentence", and "A Sentence More".`: `another "double quoted sentence", and "a sentence more".`,
 			"Some I.N.I.T.I.A.L.S.":                                    "Some i.n.i.t.i.a.l.s.",
+			"Foo & The Bar":                                            "foo & the bar",
 		},
 	}
 
@@ -115,6 +116,7 @@ func TestSentenceCase(t *testing.T) {
 			"Names like o'hara, d’arcy":       "Names LIKE O'HARA, D’ARCY",
 			"Names like McDonald and MacNeil": "Names LIKE MCDONALD AND MACNEIL",
 			"XIV LIV xiv liv. Liv. Xiv.":      "XIV LIV xiv liv. liv. xiv.",
+			"Foo & the bar":                   "foo & the bar",
 		},
 	}
 

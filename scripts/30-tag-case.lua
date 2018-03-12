@@ -273,6 +273,11 @@ local function setcase(input, const, sentencecase)
 	-- Exception 3: Capitalize first word right after a quote.
 	output = output:gsub([[([^\pL\pN]["'´’])(\p{Ll})]], function (r, c) return r .. c:upper() end)
 
+	-- Exception 4: Titlecase constants following "&".
+	if not sentencecase then
+		output = output:gsub([[(&[^\pL\pN]*)(\p{Ll})]], function (r, c) return r .. c:upper() end)
+	end
+
 	return output
 end
 
