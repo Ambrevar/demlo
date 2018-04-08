@@ -88,7 +88,7 @@ GLOBAL OPTIONS
 
 EXAMPLES
 
-	demlo -c -r '' -s cover -s remove_source album/track
+	demlo -p -c -r '' -s cover -s remove_source album/track
 
 Only download the cover for the album corresponding to the track. We use
 'removesource' to avoid duplicating the audio file.
