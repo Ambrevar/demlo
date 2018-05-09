@@ -32,7 +32,7 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	sheet, err := New(string(buf))
+	sheet, err := New(buf)
 	if err != nil {
 		panic(err)
 	}
