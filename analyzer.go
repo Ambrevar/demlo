@@ -381,7 +381,7 @@ func prepareInput(fr *FileRecord, info *inputInfo) error {
 
 	var ErrCuesheet error
 	info.cuesheet, ErrCuesheet = cuesheet.New([]byte(info.filetags["cuesheet"]))
-	if err != nil {
+	if ErrCuesheet != nil {
 		// If no cuesheet was found in the tags, we check for external ones.
 		pathNoext := StripExt(info.path)
 		// Instead of checking the extension of files in current folder, we check
